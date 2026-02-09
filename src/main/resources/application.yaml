@@ -1,0 +1,40 @@
+# ========================================
+# BASIC CONFIGURATION (Base)
+# ========================================
+
+spring:
+  application:
+    name: product-service-week6-miniproject
+  profiles:
+    active: dev
+
+# ========================================
+# LOGGING CONFIGURATION (Base)
+# ========================================
+logging:
+  # Pattern untuk console output
+  pattern:
+    console: "%clr(%d{yyyy-MM-dd HH:mm:ss.SSS}){faint} %clr([%thread]){magenta} %clr(%-5level){highlight} %clr(%logger{36}){cyan} - %msg%n"
+    file: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n"
+
+  # Log level defaults (di-override di tiap profile)
+  level:
+    root: INFO
+    edts.week5_practice1: DEBUG
+
+  # File rolling configuration (di-override di tiap profile)
+  logback:
+    rollingpolicy:
+      max-file-size: 10MB
+      max-history: 30
+      total-size-cap: 1GB
+
+# ========================================
+# CUSTOM CONFIGURATION
+# ========================================
+
+# ========================================
+# SERVER CONFIGURATION
+# ========================================
+server:
+  port: 8080
