@@ -234,78 +234,44 @@ pipeline {
         }
 
         // ============================================================
-        // STAGE 5.5: Install Node.js & Heroku CLI
+        // STAGE 5.5: Install Heroku CLI (No Sudo Required)
         // ============================================================
-        stage('Install Node.js & Heroku CLI') {
+        stage('Install Heroku CLI') {
             steps {
                 script {
-                    echo "Checking and installing Node.js, npm, and Heroku CLI..."
+                    echo "Installing Heroku CLI to workspace (no sudo required)..."
 
                     sh '''
-                        set +e
-
-                        echo "=========================================="
-                        echo "Step 1: Check Node.js and npm"
-                        echo "=========================================="
-
-                        # Check if Node.js is installed
-                        if ! command -v node &> /dev/null; then
-                            echo "⚠️ Node.js not found. Installing..."
-
-                            # Detect OS
-                            if [ -f /etc/debian_version ]; then
-                                # Debian/Ubuntu
-                                echo "Installing Node.js on Debian/Ubuntu..."
-                                curl -fsSL https://deb.nodesource.com/setup_18.x | bash -
-                                apt-get install -y nodejs
-                            elif [ -f /etc/redhat-release ]; then
-                                # RHEL/CentOS
-                                echo "Installing Node.js on RHEL/CentOS..."
-                                curl -fsSL https://rpm.nodesource.com/setup_18.x | bash -
-                                yum install -y nodejs
-                            else
-                                echo "❌ Unsupported OS. Please install Node.js manually."
-                                exit 1
-                            fi
-
-                            # Verify installation
-                            node --version
-                            npm --version
-                            echo "✅ Node.js and npm installed successfully"
+                        # Detect architecture
+                        ARCH=$(uname -m)
+                        if [ "$ARCH" = "x86_64" ]; then
+                            HEROKU_ARCH="x64"
+                        elif [ "$ARCH" = "aarch64" ] || [ "$ARCH" = "arm64" ]; then
+                            HEROKU_ARCH="arm64"
                         else
-                            echo "✅ Node.js already installed:"
-                            node --version
-                            npm --version
+                            echo "❌ Unsupported architecture: $ARCH"
+                            exit 1
                         fi
 
-                        echo ""
-                        echo "=========================================="
-                        echo "Step 2: Install Heroku CLI via npm"
-                        echo "=========================================="
+                        echo "Downloading Heroku CLI for $HEROKU_ARCH..."
 
-                        # Check if heroku CLI is installed
-                        if ! command -v heroku &> /dev/null; then
-                            echo "⚠️ Heroku CLI not found. Installing via npm..."
+                        # Create heroku directory in workspace
+                        mkdir -p "${WORKSPACE}/heroku"
 
-                            # Install heroku globally via npm
-                            npm install -g heroku
+                        # Download and extract in one command (no intermediate file needed)
+                        curl -sSL https://github.com/heroku/cli/releases/latest/download/heroku-linux-"${HEROKU_ARCH}".tar.gz | \
+                        tar -xz -C "${WORKSPACE}/heroku"
 
-                            # Verify installation
-                            heroku --version
-                            echo "✅ Heroku CLI installed successfully via npm"
-                        else
-                            echo "✅ Heroku CLI already installed:"
-                            heroku --version
-                        fi
+                        # Verify installation
+                        "${WORKSPACE}/heroku/bin/heroku" --version
 
-                        echo ""
-                        echo "=========================================="
-                        echo "Installation Complete!"
-                        echo "=========================================="
-                        echo "Node.js: $(node --version)"
-                        echo "npm: $(npm --version)"
-                        echo "Heroku CLI: $(heroku --version)"
+                        echo "✅ Heroku CLI installed to ${WORKSPACE}/heroku/bin/"
                     '''
+
+                    // Add heroku to PATH for all subsequent stages
+                    env.PATH = "${env.WORKSPACE}/heroku/bin:${env.PATH}"
+
+                    echo "✅ Added ${env.WORKSPACE}/heroku/bin to PATH"
                 }
             }
         }
@@ -318,46 +284,54 @@ pipeline {
                 script {
                     echo "Deploying to Heroku App: ${DEPLOY_APP_NAME} (${params.DEPLOY_ENV})"
 
-                    // Login to Heroku securely (no secret exposure in logs)
+                    // Verify Heroku CLI is accessible
+                    sh '''
+                        echo "Verifying Heroku CLI installation..."
+                        heroku --version
+                        echo "✅ Heroku CLI ready"
+                    '''
+
+                    // Create Heroku app if it doesn't exist (first time only)
                     withEnv(["HEROKU_API_KEY=${HEROKU_API_KEY}"]) {
                         sh '''
-                            echo "Logging in to Heroku..."
-                            # Login using API key (won't show in logs)
-                            echo "${HEROKU_API_KEY}" | heroku auth:token
+                            # Export HEROKU_API_KEY so Heroku CLI can use it
+                            export HEROKU_API_KEY
 
-                            # Verify authentication
-                            heroku auth:whoami
-                            echo "✅ Successfully authenticated to Heroku"
+                            # Check if app exists, create if not
+                            if ! heroku apps:info --app "${DEPLOY_APP_NAME}" 2>/dev/null; then
+                                echo "Creating new Heroku app: ${DEPLOY_APP_NAME}"
+                                heroku create "${DEPLOY_APP_NAME}"
+                            else
+                                echo "✅ Heroku app exists: ${DEPLOY_APP_NAME}"
+                            fi
                         '''
                     }
 
-                    // Create Heroku app if it doesn't exist (first time only)
-                    sh '''
-                        # Check if app exists, create if not
-                        if ! heroku apps:info --app "${DEPLOY_APP_NAME}" 2>/dev/null; then
-                            echo "Creating new Heroku app: ${DEPLOY_APP_NAME}"
-                            heroku create "${DEPLOY_APP_NAME}"
-                        else
-                            echo "✅ Heroku app exists: ${DEPLOY_APP_NAME}"
-                        fi
-                    '''
-
                     // Set Java version and environment variables
-                    sh '''
-                        echo "Setting Java and environment variables..."
-                        heroku config:set JAVA_OPTS="-Xmx512m -Xms256m" --app "${DEPLOY_APP_NAME}"
-                        heroku config:set SPRING_PROFILES_ACTIVE="${DEPLOY_ENV}" --app "${DEPLOY_APP_NAME}"
-                        echo "✅ Environment variables set"
-                    '''
+                    withEnv(["HEROKU_API_KEY=${HEROKU_API_KEY}", "DEPLOY_ENV=${params.DEPLOY_ENV}"]) {
+                        sh '''
+                            # Export HEROKU_API_KEY so Heroku CLI can use it
+                            export HEROKU_API_KEY
+
+                            echo "Setting Java and environment variables..."
+                            heroku config:set JAVA_OPTS="-Xmx512m -Xms256m" --app "${DEPLOY_APP_NAME}"
+                            heroku config:set SPRING_PROFILES_ACTIVE="${DEPLOY_ENV}" --app "${DEPLOY_APP_NAME}"
+                            echo "✅ Environment variables set"
+                        '''
+                    }
 
                     // Set Database Configuration (External MySQL)
                     withEnv([
+                        "HEROKU_API_KEY=${HEROKU_API_KEY}",
                         "DATABASE_URL=${DATABASE_URL}",
                         "DATABASE_USERNAME=${DATABASE_USERNAME}",
                         "DATABASE_PASSWORD=${DATABASE_PASSWORD}",
                         "DATABASE_DRIVER=${DATABASE_DRIVER}"
                     ]) {
                         sh '''
+                            # Export HEROKU_API_KEY so Heroku CLI can use it
+                            export HEROKU_API_KEY
+
                             echo "Configuring external database connection..."
                             heroku config:set DB_URL="${DATABASE_URL}" --app "${DEPLOY_APP_NAME}"
                             heroku config:set DB_USERNAME="${DATABASE_USERNAME}" --app "${DEPLOY_APP_NAME}"
@@ -368,11 +342,16 @@ pipeline {
                     }
 
                     // Set buildpacks
-                    sh '''
-                        echo "Setting Heroku buildpacks..."
-                        heroku buildpacks:set https://github.com/heroku/heroku-buildpack-java --app "${DEPLOY_APP_NAME}"
-                        echo "✅ Buildpack configured"
-                    '''
+                    withEnv(["HEROKU_API_KEY=${HEROKU_API_KEY}"]) {
+                        sh '''
+                            # Export HEROKU_API_KEY so Heroku CLI can use it
+                            export HEROKU_API_KEY
+
+                            echo "Setting Heroku buildpacks..."
+                            heroku buildpacks:set https://github.com/heroku/heroku-buildpack-java --app "${DEPLOY_APP_NAME}"
+                            echo "✅ Buildpack configured"
+                        '''
+                    }
 
                     // Deploy using Git
                     withEnv(["HEROKU_API_KEY=${HEROKU_API_KEY}", "DEPLOY_APP_NAME=${DEPLOY_APP_NAME}"]) {
@@ -405,10 +384,15 @@ pipeline {
                     echo "Running smoke tests against deployed application..."
 
                     // Get application URL from Heroku
-                    def appUrl = sh(
-                        script: "heroku apps:info --app ${DEPLOY_APP_NAME} --json | grep -o '\"web_url\":\"[^\"]*\"' | cut -d'\"' -f4",
-                        returnStdout: true
-                    ).trim()
+                    withEnv(["HEROKU_API_KEY=${HEROKU_API_KEY}"]) {
+                        def appUrl = sh(
+                            script: """
+                                export HEROKU_API_KEY
+                                heroku apps:info --app ${DEPLOY_APP_NAME} --json | grep -o '"web_url":"[^"]*"' | cut -d'"' -f4
+                            """,
+                            returnStdout: true
+                        ).trim()
+                    }
 
                     env.APP_URL = appUrl
                     echo "Application URL: ${appUrl}"
