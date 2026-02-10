@@ -410,8 +410,8 @@ pipeline {
                     echo "Application URL: ${appUrl}"
 
                     // Wait for application to start
-                    echo "Waiting for application to be ready (45 seconds)..."
-                    sleep time: 45, unit: 'SECONDS'
+                    echo "Waiting for application to be ready (60 seconds)..."
+                    sleep time: 60, unit: 'SECONDS'
 
                     // Health check using Actuator endpoint
                     // Pass appUrl as environment variable to shell script
@@ -429,6 +429,7 @@ pipeline {
 
                                 if [ "\${HTTP_CODE}" = "200" ]; then
                                     echo "✅ Health check passed!"
+                                    echo "Response:"
                                     curl -s \${APP_URL}/actuator/health | jq . || echo "Health check response"
                                     exit 0
                                 fi
@@ -440,6 +441,11 @@ pipeline {
 
                             echo "❌ Health check failed after \${MAX_RETRIES} attempts"
                             echo "URL attempted: \${APP_URL}"
+                            echo ""
+                            echo "🔍 Troubleshooting:"
+                            echo "1. Check Heroku app logs: heroku logs --tail --app ${DEPLOY_APP_NAME}"
+                            echo "2. Check if dyno is running: heroku ps --app ${DEPLOY_APP_NAME}"
+                            echo "3. Check if app started: heroku ps:restart --app ${DEPLOY_APP_NAME}"
                             exit 1
                         """
                     }
