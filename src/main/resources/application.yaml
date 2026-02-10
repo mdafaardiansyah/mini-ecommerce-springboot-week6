@@ -5,8 +5,8 @@
 spring:
   application:
     name: service-week6-miniproject
-  profiles:
-    active: dev
+  # profiles:
+  #   active: dev  ← DON'T SET DEFAULT PROFILE! Let Heroku env var control it
 
 # ========================================
 # LOGGING CONFIGURATION (Base)
