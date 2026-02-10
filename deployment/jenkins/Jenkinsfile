@@ -362,22 +362,24 @@ pipeline {
                         echo "✅ Buildpack configured"
                     '''
 
-                    // Deploy using Git
+                    // Deploy using Git (FIXED: Explicit Refspec)
                     withEnv(["HEROKU_API_KEY=${HEROKU_API_KEY}", "DEPLOY_APP_NAME=${DEPLOY_APP_NAME}"]) {
                         sh '''
                             echo "Deploying to Heroku..."
-                            # Get current branch name dynamically
-                            CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
-                            echo "Current branch: ${CURRENT_BRANCH}"
 
-                            # Create a temporary git remote for Heroku
-                            git remote add heroku-deploy https://heroku:${HEROKU_API_KEY}@git.heroku.com/${DEPLOY_APP_NAME}.git || \
-                            git remote set-url heroku-deploy https://heroku:${HEROKU_API_KEY}@git.heroku.com/${DEPLOY_APP_NAME}.git
+                            # 1. Setup Remote
+                            # Hapus dulu biar bersih (mencegah error 'already exists')
+                            git remote remove heroku-deploy || true
 
-                            # Push to Heroku (push current branch to main)
-                            git push heroku-deploy ${CURRENT_BRANCH}:main --force
+                            # Tambah remote baru
+                            git remote add heroku-deploy https://heroku:${HEROKU_API_KEY}@git.heroku.com/${DEPLOY_APP_NAME}.git
 
-                            # Remove the remote
+                            # 2. Push (BAGIAN PENTING)
+                            # Gunakan 'HEAD:refs/heads/main'
+                            # Artinya: "Ambil commit saya saat ini (HEAD), paksakan masuk ke branch main (refs/heads/main) di sana"
+                            git push heroku-deploy HEAD:refs/heads/main --force
+
+                            # 3. Cleanup
                             git remote remove heroku-deploy
                             echo "✅ Deployment completed"
                         '''
