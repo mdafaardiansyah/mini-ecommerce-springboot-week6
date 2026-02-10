@@ -234,20 +234,23 @@ pipeline {
         }
 
         // ============================================================
-        // STAGE 5.5: Install Heroku CLI (No Sudo Required)
+        // STAGE 5.5: Install Heroku CLI (FIXED PATH)
         // ============================================================
         stage('Install Heroku CLI') {
             steps {
                 script {
-                    echo "Installing Heroku CLI to workspace (no sudo required)..."
+                    echo "Installing Heroku CLI directly to workspace..."
 
                     sh '''
-                        set -e
+                        # 1. Pastikan kita di root workspace
+                        cd ${WORKSPACE}
 
-                        # Detect architecture
+                        # 2. Hapus instalasi lama jika ada (biar bersih)
+                        rm -rf heroku heroku.tar.gz
+
+                        # 3. Detect architecture
                         ARCH=$(uname -m)
                         if [ "$ARCH" = "x86_64" ]; then
-                            # Use Heroku's CDN instead of GitHub (more reliable)
                             DOWNLOAD_URL="https://cli-assets.heroku.com/heroku-linux-x64.tar.gz"
                         elif [ "$ARCH" = "aarch64" ] || [ "$ARCH" = "arm64" ]; then
                             DOWNLOAD_URL="https://cli-assets.heroku.com/heroku-linux-arm64.tar.gz"
@@ -256,91 +259,29 @@ pipeline {
                             exit 1
                         fi
 
-                        echo "=========================================="
-                        echo "Heroku CLI Installation"
-                        echo "=========================================="
-                        echo "Architecture: $ARCH"
-                        echo "Download URL: $DOWNLOAD_URL"
-                        echo "=========================================="
+                        # 4. Download langsung (Tanpa masuk folder tmp)
+                        echo "Downloading Heroku CLI from: $DOWNLOAD_URL"
+                        curl -fsSL "$DOWNLOAD_URL" -o heroku.tar.gz
 
-                        # Create heroku directory in workspace
-                        mkdir -p "${WORKSPACE}/heroku"
+                        # 5. Extract (Otomatis akan membuat folder bernama 'heroku')
+                        echo "Extracting..."
+                        tar -xzf heroku.tar.gz
 
-                        # Download to temporary file
-                        TEMP_FILE="/tmp/heroku-cli.tar.gz"
+                        # 6. Hapus file mentahan tar.gz
+                        rm heroku.tar.gz
 
-                        echo "Step 1: Downloading from Heroku CDN..."
-                        if curl -fSL "$DOWNLOAD_URL" -o "$TEMP_FILE"; then
-                            echo "✅ Download completed"
-                        else
-                            echo "❌ Download from CDN failed!"
-                            echo "Please check your internet connection or proxy settings"
-                            exit 1
-                        fi
-
-                        # Check file size
-                        FILE_SIZE=$(stat -c%s "$TEMP_FILE" 2>/dev/null || stat -f%z "$TEMP_FILE" 2>/dev/null || echo "0")
-                        echo "Step 2: Downloaded file size: $FILE_SIZE bytes"
-
-                        if [ "$FILE_SIZE" -lt 10000000 ]; then
-                            echo "❌ File too small! Download may have failed."
-                            echo "First 200 bytes of downloaded file:"
-                            head -c 200 "$TEMP_FILE"
-                            rm -f "$TEMP_FILE"
-                            exit 1
-                        fi
-
-                        # Extract to temporary location first to check structure
-                        echo "Step 3: Extracting to check structure..."
-                        TEMP_EXTRACT="/tmp/heroku-temp"
-                        mkdir -p "$TEMP_EXTRACT"
-                        tar -xzf "$TEMP_FILE" -C "$TEMP_EXTRACT"
-
-                        # Find where the heroku binary is located
-                        echo "Step 4: Locating heroku binary..."
-                        HEROKU_BINARY=$(find "$TEMP_EXTRACT" -type f -name "heroku" | head -1)
-
-                        if [ -z "$HEROKU_BINARY" ]; then
-                            echo "❌ Could not find heroku binary after extraction!"
-                            echo "Directory structure:"
-                            ls -laR "$TEMP_EXTRACT"
-                            rm -rf "$TEMP_EXTRACT" "$TEMP_FILE"
-                            exit 1
-                        fi
-
-                        echo "Found heroku binary at: $HEROKU_BINARY"
-
-                        # The binary is in TEMP_EXTRACT/heroku/bin/heroku
-                        # We need to copy the parent 'heroku' directory
-                        HEROKU_ROOT_DIR=$(dirname $(dirname $(dirname "$HEROKU_BINARY")))
-                        echo "Heroku root directory: $HEROKU_ROOT_DIR"
-
-                        # Show structure
-                        echo "Directory structure:"
-                        ls -la "$HEROKU_ROOT_DIR"
-
-                        # Copy the entire heroku directory to workspace
-                        echo "Step 5: Copying to workspace..."
-                        cp -r "$HEROKU_ROOT_DIR"/* "${WORKSPACE}/heroku/"
-
-                        # Cleanup temp files
-                        rm -rf "$TEMP_EXTRACT" "$TEMP_FILE"
-
-                        # Verify installation
-                        echo "Step 6: Verifying installation..."
-                        "${WORKSPACE}/heroku/bin/heroku" --version
-
-                        echo ""
-                        echo "=========================================="
-                        echo "✅ Installation Complete!"
-                        echo "Location: ${WORKSPACE}/heroku/bin/"
-                        echo "=========================================="
+                        # 7. Verifikasi path
+                        echo "Checking directory structure..."
+                        ls -F ${WORKSPACE}/heroku/bin/
                     '''
 
-                    // Add heroku to PATH for all subsequent stages
+                    // 8. Update PATH agar stage selanjutnya bisa panggil 'heroku'
+                    // Ini bagian paling PENTING: Menambahkan folder bin ke System Path Jenkins
                     env.PATH = "${env.WORKSPACE}/heroku/bin:${env.PATH}"
 
-                    echo "✅ Added ${env.WORKSPACE}/heroku/bin to PATH"
+                    // 9. Test Command
+                    sh 'heroku --version'
+                    echo "✅ Heroku CLI installed successfully!"
                 }
             }
         }
