@@ -19,8 +19,14 @@ import java.util.List;
  * <p>This class configures the OpenAPI documentation for the REST API.
  * It provides API metadata, server information, and endpoint grouping.</p>
  *
- * <p>Access Swagger UI at: http://localhost:8080/swagger-ui/index.html</p>
- * <p>Access OpenAPI JSON at: http://localhost:8080/v3/api-docs</p>
+ * <p>Access Swagger UI at:
+ * - Development: http://localhost:8080/swagger-ui/index.html
+ * - Production: https://idp-week6.glanze.space/swagger-ui/index.html
+ * </p>
+ * <p>Access OpenAPI JSON at:
+ * - Development: http://localhost:8080/v3/api-docs
+ * - Production: https://idp-week6.glanze.space/v3/api-docs
+ * </p>
  *
  * @author EDTS Team
  * @version 1.0.0
@@ -89,10 +95,10 @@ public class OpenApiConfig {
                 .servers(List.of(
                         new Server()
                                 .url("http://localhost:" + serverPort)
-                                .description("Development Server"),
+                                .description("Development Server (Local)"),
                         new Server()
-                                .url("https://api.ecommerce.com")
-                                .description("Production Server")
+                                .url("https://idp-week6.glanze.space")
+                                .description("Production Server (Heroku)")
                 ));
     }
 
