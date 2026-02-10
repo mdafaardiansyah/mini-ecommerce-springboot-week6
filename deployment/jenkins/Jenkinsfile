@@ -242,25 +242,55 @@ pipeline {
                     echo "Installing Heroku CLI to workspace (no sudo required)..."
 
                     sh '''
+                        set -e
+
                         # Detect architecture
                         ARCH=$(uname -m)
                         if [ "$ARCH" = "x86_64" ]; then
                             HEROKU_ARCH="x64"
+                            HEROKU_VERSION="v9.1.0"
+                            DOWNLOAD_URL="https://github.com/heroku/cli/releases/download/v9.1.0/heroku-cli-linux-x64.tar.gz"
                         elif [ "$ARCH" = "aarch64" ] || [ "$ARCH" = "arm64" ]; then
                             HEROKU_ARCH="arm64"
+                            HEROKU_VERSION="v9.1.0"
+                            DOWNLOAD_URL="https://github.com/heroku/cli/releases/download/v9.1.0/heroku-cli-linux-arm64.tar.gz"
                         else
                             echo "❌ Unsupported architecture: $ARCH"
                             exit 1
                         fi
 
-                        echo "Downloading Heroku CLI for $HEROKU_ARCH..."
+                        echo "Downloading Heroku CLI ${HEROKU_VERSION} for $HEROKU_ARCH..."
+                        echo "URL: $DOWNLOAD_URL"
 
                         # Create heroku directory in workspace
                         mkdir -p "${WORKSPACE}/heroku"
 
-                        # Download and extract in one command (no intermediate file needed)
-                        curl -sSL https://github.com/heroku/cli/releases/latest/download/heroku-linux-"${HEROKU_ARCH}".tar.gz | \
-                        tar -xz -C "${WORKSPACE}/heroku"
+                        # Download to temporary file first (to verify)
+                        TEMP_FILE="/tmp/heroku-cli.tar.gz"
+
+                        echo "Downloading to temporary file..."
+                        curl -SL "$DOWNLOAD_URL" -o "$TEMP_FILE"
+
+                        # Verify it's a gzip file
+                        echo "Verifying download..."
+                        if file "$TEMP_FILE" | grep -q "gzip compressed"; then
+                            echo "✅ Downloaded file is valid gzip format"
+                        else
+                            echo "❌ Downloaded file is not gzip format!"
+                            echo "File info:"
+                            file "$TEMP_FILE"
+                            echo "First 100 bytes:"
+                            head -c 100 "$TEMP_FILE"
+                            rm -f "$TEMP_FILE"
+                            exit 1
+                        fi
+
+                        # Extract to workspace
+                        echo "Extracting to ${WORKSPACE}/heroku..."
+                        tar -xzf "$TEMP_FILE" -C "${WORKSPACE}/heroku"
+
+                        # Cleanup temp file
+                        rm -f "$TEMP_FILE"
 
                         # Verify installation
                         "${WORKSPACE}/heroku/bin/heroku" --version
