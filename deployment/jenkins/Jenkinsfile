@@ -354,8 +354,14 @@ pipeline {
                     // Set buildpacks
                     sh '''
                         echo "Setting Heroku buildpacks..."
-                        heroku buildpacks:set https://github.com/heroku/heroku-buildpack-java --app "${DEPLOY_APP_NAME}"
-                        echo "✅ Buildpack configured"
+
+                        # Check if buildpack is already set
+                        if heroku buildpacks --app "${DEPLOY_APP_NAME}" | grep -q "heroku/buildpack-java"; then
+                            echo "✅ Java buildpack already set (skipping)"
+                        else
+                            heroku buildpacks:set https://github.com/heroku/heroku-buildpack-java --app "${DEPLOY_APP_NAME}"
+                            echo "✅ Buildpack configured"
+                        fi
                     '''
 
                     // Deploy using Git
