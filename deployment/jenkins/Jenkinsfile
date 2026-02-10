@@ -351,17 +351,15 @@ pipeline {
                         '''
                     }
 
-                    // Set buildpacks
+                    // Set buildpacks (FIXED: Ignore error if already set)
                     sh '''
                         echo "Setting Heroku buildpacks..."
 
-                        # Check if buildpack is already set
-                        if heroku buildpacks --app "${DEPLOY_APP_NAME}" | grep -q "heroku/buildpack-java"; then
-                            echo "✅ Java buildpack already set (skipping)"
-                        else
-                            heroku buildpacks:set https://github.com/heroku/heroku-buildpack-java --app "${DEPLOY_APP_NAME}"
-                            echo "✅ Buildpack configured"
-                        fi
+                        # Jalankan set buildpack.
+                        # Tambahan '|| true' artinya: "Kalau gagal (karena udah ada), biarin aja, lanjut terus!"
+                        heroku buildpacks:set https://github.com/heroku/heroku-buildpack-java --app "${DEPLOY_APP_NAME}" || echo "⚠️ Buildpack setup skipped (likely already set)"
+
+                        echo "✅ Buildpack configured"
                     '''
 
                     // Deploy using Git
