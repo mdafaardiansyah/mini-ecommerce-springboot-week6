@@ -303,39 +303,44 @@ pipeline {
                         if [ -z "$HEROKU_BINARY" ]; then
                             echo "❌ Could not find heroku binary after extraction!"
                             echo "Directory structure:"
-                            find "$TEMP_EXTRACT" -type f
+                            ls -laR "$TEMP_EXTRACT"
                             rm -rf "$TEMP_EXTRACT" "$TEMP_FILE"
                             exit 1
                         fi
 
                         echo "Found heroku binary at: $HEROKU_BINARY"
 
-                        # Get the directory containing the heroku binary
-                        HEROKU_BIN_DIR=$(dirname "$HEROKU_BINARY")
-                        echo "Binary directory: $HEROKU_BIN_DIR"
+                        # The binary is in TEMP_EXTRACT/heroku/bin/heroku
+                        # We need to copy the parent 'heroku' directory
+                        HEROKU_ROOT_DIR=$(dirname $(dirname $(dirname "$HEROKU_BINARY")))
+                        echo "Heroku root directory: $HEROKU_ROOT_DIR"
 
-                        # Copy to workspace heroku directory
+                        # Show structure
+                        echo "Directory structure:"
+                        ls -la "$HEROKU_ROOT_DIR"
+
+                        # Copy the entire heroku directory to workspace
                         echo "Step 5: Copying to workspace..."
-                        cp -r "$HEROKU_BIN_DIR"/* "${WORKSPACE}/heroku/"
+                        cp -r "$HEROKU_ROOT_DIR"/* "${WORKSPACE}/heroku/"
 
                         # Cleanup temp files
                         rm -rf "$TEMP_EXTRACT" "$TEMP_FILE"
 
                         # Verify installation
                         echo "Step 6: Verifying installation..."
-                        "${WORKSPACE}/heroku/heroku" --version
+                        "${WORKSPACE}/heroku/bin/heroku" --version
 
                         echo ""
                         echo "=========================================="
                         echo "✅ Installation Complete!"
-                        echo "Location: ${WORKSPACE}/heroku/"
+                        echo "Location: ${WORKSPACE}/heroku/bin/"
                         echo "=========================================="
                     '''
 
                     // Add heroku to PATH for all subsequent stages
-                    env.PATH = "${env.WORKSPACE}/heroku:${env.PATH}"
+                    env.PATH = "${env.WORKSPACE}/heroku/bin:${env.PATH}"
 
-                    echo "✅ Added ${env.WORKSPACE}/heroku to PATH"
+                    echo "✅ Added ${env.WORKSPACE}/heroku/bin to PATH"
                 }
             }
         }
