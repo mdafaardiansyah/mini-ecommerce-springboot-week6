@@ -334,20 +334,29 @@ pipeline {
                         '''
                     }
 
-                    // Set Database Configuration (External MySQL)
+                    // Set Database Configuration (FIXED: Menggunakan Standar Spring Boot)
                     withEnv([
-                        "DATABASE_URL=${DATABASE_URL}",
-                        "DATABASE_USERNAME=${DATABASE_USERNAME}",
-                        "DATABASE_PASSWORD=${DATABASE_PASSWORD}",
-                        "DATABASE_DRIVER=${DATABASE_DRIVER}"
+                        "HEROKU_API_KEY=${HEROKU_API_KEY}",
+                        "DATABASE_URL=${DATABASE_URL}",       // Mengambil dari Credential 'db-url'
+                        "DATABASE_USERNAME=${DATABASE_USERNAME}", // Mengambil dari Credential 'db-username'
+                        "DATABASE_PASSWORD=${DATABASE_PASSWORD}", // Mengambil dari Credential 'db-password'
+                        "DATABASE_DRIVER=${DATABASE_DRIVER}"      // Mengambil dari Credential 'db-driver'
                     ]) {
                         sh '''
-                            echo "Configuring external database connection..."
-                            heroku config:set DB_URL="${DATABASE_URL}" --app "${DEPLOY_APP_NAME}"
-                            heroku config:set DB_USERNAME="${DATABASE_USERNAME}" --app "${DEPLOY_APP_NAME}"
-                            heroku config:set DB_PASSWORD="********" --app "${DEPLOY_APP_NAME}"
-                            heroku config:set DRIVER_MYSQL="${DATABASE_DRIVER}" --app "${DEPLOY_APP_NAME}"
-                            echo "✅ Database configuration set"
+                            # Export HEROKU_API_KEY agar CLI bisa login
+                            export HEROKU_API_KEY
+
+                            echo "Configuring database connection..."
+
+                            # KITA UBAH NAMA VARIABELNYA KE STANDAR SPRING BOOT
+                            # Agar aplikasi otomatis baca tanpa perlu ubah application.properties
+
+                            heroku config:set SPRING_DATASOURCE_URL="${DATABASE_URL}" --app "${DEPLOY_APP_NAME}"
+                            heroku config:set SPRING_DATASOURCE_USERNAME="${DATABASE_USERNAME}" --app "${DEPLOY_APP_NAME}"
+                            heroku config:set SPRING_DATASOURCE_PASSWORD="${DATABASE_PASSWORD}" --app "${DEPLOY_APP_NAME}"
+                            heroku config:set SPRING_DATASOURCE_DRIVER_CLASS_NAME="${DATABASE_DRIVER}" --app "${DEPLOY_APP_NAME}"
+
+                            echo "✅ Database configuration set (Spring Boot Standard)"
                         '''
                     }
 
