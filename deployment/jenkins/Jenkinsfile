@@ -598,7 +598,7 @@ ${failureMessage}
                     echo "⚠️ Discord notification not configured. Skipping notification..."
                 }
             }
-
+        }
 
         always {
             echo "Pipeline execution completed"
