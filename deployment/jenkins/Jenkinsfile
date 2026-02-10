@@ -234,45 +234,77 @@ pipeline {
         }
 
         // ============================================================
-        // STAGE 5.5: Check Heroku CLI
+        // STAGE 5.5: Install Node.js & Heroku CLI
         // ============================================================
-        stage('Check Heroku CLI') {
+        stage('Install Node.js & Heroku CLI') {
             steps {
                 script {
-                    echo "Checking Heroku CLI installation..."
+                    echo "Checking and installing Node.js, npm, and Heroku CLI..."
 
                     sh '''
+                        set +e
+
+                        echo "=========================================="
+                        echo "Step 1: Check Node.js and npm"
+                        echo "=========================================="
+
+                        # Check if Node.js is installed
+                        if ! command -v node &> /dev/null; then
+                            echo "⚠️ Node.js not found. Installing..."
+
+                            # Detect OS
+                            if [ -f /etc/debian_version ]; then
+                                # Debian/Ubuntu
+                                echo "Installing Node.js on Debian/Ubuntu..."
+                                curl -fsSL https://deb.nodesource.com/setup_18.x | bash -
+                                apt-get install -y nodejs
+                            elif [ -f /etc/redhat-release ]; then
+                                # RHEL/CentOS
+                                echo "Installing Node.js on RHEL/CentOS..."
+                                curl -fsSL https://rpm.nodesource.com/setup_18.x | bash -
+                                yum install -y nodejs
+                            else
+                                echo "❌ Unsupported OS. Please install Node.js manually."
+                                exit 1
+                            fi
+
+                            # Verify installation
+                            node --version
+                            npm --version
+                            echo "✅ Node.js and npm installed successfully"
+                        else
+                            echo "✅ Node.js already installed:"
+                            node --version
+                            npm --version
+                        fi
+
+                        echo ""
+                        echo "=========================================="
+                        echo "Step 2: Install Heroku CLI via npm"
+                        echo "=========================================="
+
                         # Check if heroku CLI is installed
                         if ! command -v heroku &> /dev/null; then
-                            echo "⚠️ WARNING: Heroku CLI not found!"
-                            echo ""
-                            echo "Please install Heroku CLI on Jenkins agent:"
-                            echo ""
-                            echo "  Option 1 - Via Snap (Ubuntu/Debian):"
-                            echo "    sudo snap install heroku --classic"
-                            echo ""
-                            echo "  Option 2 - Via Curl (All Linux):"
-                            echo "    curl https://cli-assets.heroku.com/install.sh | sh"
-                            echo ""
-                            echo "  Option 3 - Via NPM:"
-                            echo "    npm install -g heroku"
-                            echo ""
-                            echo "  Option 4 - Download Binary:"
-                            echo "    wget https://github.com/heroku/cli/releases/download/v9.1.0/heroku-cli-linux-x64.tar.gz"
-                            echo "    tar -xzf heroku-cli-linux-x64.tar.gz"
-                            echo "    sudo mv heroku /usr/local/bin/"
-                            echo ""
-                            echo "After installation, verify with: heroku --version"
-                            echo ""
-                            echo "Documentation: https://devcenter.heroku.com/articles/heroku-cli"
-                            echo ""
-                            echo "❌ Pipeline will FAIL in Deploy stage without Heroku CLI!"
-                            echo "Skipping check..."
-                            exit 0
+                            echo "⚠️ Heroku CLI not found. Installing via npm..."
+
+                            # Install heroku globally via npm
+                            npm install -g heroku
+
+                            # Verify installation
+                            heroku --version
+                            echo "✅ Heroku CLI installed successfully via npm"
                         else
-                            echo "✅ Heroku CLI already installed"
+                            echo "✅ Heroku CLI already installed:"
                             heroku --version
                         fi
+
+                        echo ""
+                        echo "=========================================="
+                        echo "Installation Complete!"
+                        echo "=========================================="
+                        echo "Node.js: $(node --version)"
+                        echo "npm: $(npm --version)"
+                        echo "Heroku CLI: $(heroku --version)"
                     '''
                 }
             }
