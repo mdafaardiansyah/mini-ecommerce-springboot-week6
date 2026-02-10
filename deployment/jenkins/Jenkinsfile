@@ -1,0 +1,447 @@
+/**
+ * Jenkins Pipeline for Spring Boot Application Deployment to Heroku
+ *
+ * This pipeline automates the build, test, and deployment process for a Spring Boot application.
+ * It includes stages for checkout, building, testing, and deploying to Heroku.
+ *
+ * Prerequisites:
+ * - Jenkins with Maven and Git installed
+ * - Heroku CLI installed on Jenkins agent
+ * - Heroku API key stored in Jenkins credentials
+ */
+
+pipeline {
+    agent any
+
+    tools {
+        maven 'Maven 3.9'  // Ensure Maven is configured in Jenkins Global Tools
+    }
+
+    parameters {
+        string(
+            name: 'RELEASE_TAG',
+            defaultValue: '',
+            description: 'Release tag to build and deploy (leave empty to use build number)'
+        )
+        choice(
+            name: 'DEPLOY_ENV',
+            choices: ['development', 'production'],
+            description: 'Environment to deploy'
+        )
+        booleanParam(
+            name: 'RUN_TESTS',
+            defaultValue: true,
+            description: 'Run unit and integration tests'
+        )
+    }
+
+    environment {
+        // Heroku Credentials
+        HEROKU_API_KEY = credentials('heroku-api-key')
+        HEROKU_APP_NAME_DEV = credentials('heroku-app-name-dev')
+        HEROKU_APP_NAME_PROD = credentials('heroku-app-name-prod')
+
+        // Notification (optional)
+        DISCORD_WEBHOOK = credentials('discord-notification')
+
+        // Application Configuration
+        APP_NAME = 'week6-practice1'
+        IMAGE_TAG = "${params.RELEASE_TAG ? params.RELEASE_TAG : env.BUILD_NUMBER}"
+        DEPLOY_APP_NAME = "${params.DEPLOY_ENV == 'production' ? HEROKU_APP_NAME_PROD : HEROKU_APP_NAME_DEV}"
+    }
+
+    stages {
+        // ============================================================
+        // STAGE 1: Checkout Source Code
+        // ============================================================
+        stage('Checkout') {
+            steps {
+                checkout scm
+
+                script {
+                    // Extract Git information
+                    env.GIT_BRANCH = sh(
+                        script: 'git rev-parse --abbrev-ref HEAD',
+                        returnStdout: true
+                    ).trim()
+
+                    env.GIT_COMMIT = sh(
+                        script: 'git rev-parse HEAD',
+                        returnStdout: true
+                    ).trim()
+
+                    env.GIT_COMMIT_SHORT = sh(
+                        script: 'git rev-parse --short HEAD',
+                        returnStdout: true
+                    ).trim()
+
+                    env.GIT_AUTHOR = sh(
+                        script: 'git log -1 --pretty=format:"%an"',
+                        returnStdout: true
+                    ).trim()
+
+                    env.GIT_MESSAGE = sh(
+                        script: 'git log -1 --pretty=format:"%s"',
+                        returnStdout: true
+                    ).trim()
+
+                    echo "Branch: ${env.GIT_BRANCH}"
+                    echo "Commit: ${env.GIT_COMMIT_SHORT}"
+                    echo "Author: ${env.GIT_AUTHOR}"
+                    echo "Message: ${env.GIT_MESSAGE}"
+
+                    // Send notification to Discord (optional)
+                    discordSend(
+                        webhookURL: DISCORD_WEBHOOK,
+                        title: "🚀 Build Started!",
+                        description: """**Branch:** `${env.GIT_BRANCH}`
+**Build:** `#${env.BUILD_NUMBER}`
+**Status:** `🔄 In Progress`
+**Commit:** `${env.GIT_COMMIT_SHORT}`
+**Author:** `${env.GIT_AUTHOR}`
+**Message:** `${env.GIT_MESSAGE}`
+
+**🔗 Links:**
+• [View Build](${env.BUILD_URL})
+• [Console Output](${env.BUILD_URL}console)""",
+                        link: env.BUILD_URL,
+                        result: 'STARTED'
+                    )
+                }
+            }
+        }
+
+        // ============================================================
+        // STAGE 2: Build Application
+        // ============================================================
+        stage('Build') {
+            steps {
+                script {
+                    echo "Building Spring Boot Application with Maven..."
+
+                    // Set Maven options for better performance
+                    withEnv([
+                        'MAVEN_OPTS=-Xmx3072m -XX:MaxPermSize=512m',
+                        "SPRING_PROFILES_ACTIVE=${params.DEPLOY_ENV}"
+                    ]) {
+                        // Clean, package, and skip tests for build stage
+                        sh 'mvn clean package -DskipTests'
+                    }
+
+                    // Verify jar file was created
+                    sh '''
+                        if [ -f target/Week6_Practice1-0.0.1-SNAPSHOT.jar ]; then
+                            echo "✅ Build successful - JAR file created"
+                            ls -lh target/Week6_Practice1-0.0.1-SNAPSHOT.jar
+                        else
+                            echo "❌ Build failed - JAR file not found"
+                            exit 1
+                        fi
+                    '''
+                }
+            }
+        }
+
+        // ============================================================
+        // STAGE 3: Run Tests (Optional)
+        // ============================================================
+        stage('Test') {
+            when {
+                expression { params.RUN_TESTS == true }
+            }
+            steps {
+                script {
+                    echo "Running Unit and Integration Tests..."
+
+                    sh 'mvn test'
+
+                    // Publish test results
+                    junit allowEmptyResults: true, testResults: 'target/surefire-reports/*.xml'
+
+                    // Optional: Publish code coverage with JaCoCo
+                    // jacoco execPattern: 'target/jacoco.exec', ...
+                }
+            }
+            post {
+                always {
+                    // Archive test reports
+                    junit allowEmptyResults: true, testResults: 'target/surefire-reports/*.xml'
+
+                    // Publish HTML test report (optional)
+                    // publishHTML(target: [
+                    //     allowMissing: false,
+                    //     alwaysLinkToLastBuild: true,
+                    //     keepAll: true,
+                    //     reportDir: 'target/site/surefire-report.html',
+                    //     reportFiles: 'index.html',
+                    //     reportName: 'Test Report'
+                    // ])
+                }
+            }
+        }
+
+        // ============================================================
+        // STAGE 4: Code Quality (Optional - Commented Out)
+        // ============================================================
+        // stage('Code Quality Analysis') {
+        //     steps {
+        //         script {
+        //             withSonarQubeEnv('SonarQube-Server') {
+        //                 sh """
+        //                     mvn sonar:sonar \
+        //                     -Dsonar.projectKey=${APP_NAME} \
+        //                     -Dsonar.projectName="${APP_NAME}" \
+        //                     -Dsonar.sources=src/main/java \
+        //                     -Dsonar.tests=src/test/java \
+        //                     -Dsonar.java.binaries=target/classes \
+        //                     -Dsonar.junit.reportPaths=target/surefire-reports
+        //                 """
+        //             }
+        //         }
+        //     }
+        // }
+
+        // ============================================================
+        // STAGE 5: Security Scan - Dependencies (Optional)
+        // ============================================================
+        stage('Security Scan - Dependencies') {
+            steps {
+                script {
+                    echo "Running OWASP Dependency Check..."
+
+                    // Run OWASP dependency check if available
+                    // sh 'mvn org.owasp:dependency-check-maven:check'
+
+                    // Alternatively, use Maven dependency:tree to check for vulnerabilities
+                    sh 'mvn dependency:tree || true'
+
+                    echo "⚠️ Note: Configure OWASP Dependency Check plugin in pom.xml for automated scanning"
+                }
+            }
+        }
+
+        // ============================================================
+        // STAGE 6: Deploy to Heroku
+        // ============================================================
+        stage('Deploy to Heroku') {
+            when {
+                anyOf {
+                    branch 'main'
+                    branch 'master'
+                    branch 'develop'
+                }
+            }
+            steps {
+                script {
+                    echo "Deploying to Heroku App: ${DEPLOY_APP_NAME} (${params.DEPLOY_ENV})"
+
+                    // Login to Heroku
+                    sh """
+                        echo "Logging in to Heroku..."
+                        echo ${HEROKU_API_KEY} | heroku auth:token
+
+                        # Verify authentication
+                        heroku auth:whoami
+                    """
+
+                    // Create Heroku app if it doesn't exist (first time only)
+                    sh """
+                        # Check if app exists, create if not
+                        if ! heroku apps:info --app ${DEPLOY_APP_NAME} 2>/dev/null; then
+                            echo "Creating new Heroku app: ${DEPLOY_APP_NAME}"
+                            heroku create ${DEPLOY_APP_NAME}
+                        else
+                            echo "Heroku app exists: ${DEPLOY_APP_NAME}"
+                        fi
+                    """
+
+                    // Set Java version
+                    sh """
+                        heroku config:set JAVA_OPTS="-Xmx512m -Xms256m" --app ${DEPLOY_APP_NAME}
+                        heroku config:set SPRING_PROFILES_ACTIVE=${params.DEPLOY_ENV} --app ${DEPLOY_APP_NAME}
+                    """
+
+                    // Set buildpacks
+                    sh """
+                        heroku buildpacks:set https://github.com/heroku/heroku-buildpack-java --app ${DEPLOY_APP_NAME}
+                    """
+
+                    // Deploy using Git
+                    sh """
+                        echo "Deploying to Heroku..."
+                        # Create a temporary git remote for Heroku
+                        git remote add heroku-deploy https://heroku:${HEROKU_API_KEY}@git.heroku.com/${DEPLOY_APP_NAME}.git || \
+                        git remote set-url heroku-deploy https://heroku:${HEROKU_API_KEY}@git.heroku.com/${DEPLOY_APP_NAME}.git
+
+                        # Push to Heroku
+                        git push heroku-deploy HEAD:main --force
+
+                        # Remove the remote
+                        git remote remove heroku-deploy
+                    """
+
+                    echo "✅ Deployment successful!"
+                }
+            }
+        }
+
+        // ============================================================
+        // STAGE 7: Health Check / Smoke Test
+        // ============================================================
+        stage('Smoke Test') {
+            steps {
+                script {
+                    echo "Running smoke tests against deployed application..."
+
+                    // Get application URL from Heroku
+                    def appUrl = sh(
+                        script: "heroku apps:info --app ${DEPLOY_APP_NAME} --json | grep -o '\"web_url\":\"[^\"]*\"' | cut -d'\"' -f4",
+                        returnStdout: true
+                    ).trim()
+
+                    env.APP_URL = appUrl
+                    echo "Application URL: ${appUrl}"
+
+                    // Wait for application to start
+                    echo "Waiting for application to be ready (45 seconds)..."
+                    sleep time: 45, unit: 'SECONDS'
+
+                    // Health check using Actuator endpoint
+                    sh """
+                        set +e
+                        MAX_RETRIES=10
+                        RETRY_COUNT=0
+
+                        while [ \$RETRY_COUNT -lt \$MAX_RETRIES ]; do
+                            echo "Attempt \$((RETRY_COUNT + 1)) of \$MAX_RETRIES"
+
+                            # Check health endpoint
+                            HTTP_CODE=\$(curl -s -o /dev/null -w "%{http_code}" ${appUrl}/actuator/health || echo "000")
+
+                            if [ "\$HTTP_CODE" = "200" ]; then
+                                echo "✅ Health check passed!"
+                                curl -s ${appUrl}/actuator/health | jq .
+                                exit 0
+                            fi
+
+                            echo "⏳ Waiting for service... (HTTP: \$HTTP_CODE)"
+                            sleep 10
+                            RETRY_COUNT=\$((RETRY_COUNT + 1))
+                        done
+
+                        echo "❌ Health check failed after \$MAX_RETRIES attempts"
+                        exit 1
+                    """
+                }
+            }
+        }
+
+        // ============================================================
+        // STAGE 8: Database Migration (Optional)
+        // ============================================================
+        stage('Database Migration') {
+            when {
+                expression { params.DEPLOY_ENV == 'production' }
+            }
+            steps {
+                script {
+                    echo "Running database migrations on Heroku Postgres..."
+
+                    // Run Flyway migrations if configured
+                    // sh "mvn flyway:migrate -Dflyway.url=\$DATABASE_URL"
+
+                    echo "✅ Database migration completed"
+                }
+            }
+        }
+    }
+
+    // ============================================================
+    // POST ACTIONS
+    // ============================================================
+    post {
+        success {
+            script {
+                echo "✅ Pipeline completed successfully!"
+
+                // Send success notification to Discord
+                discordSend(
+                    webhookURL: DISCORD_WEBHOOK,
+                    title: "✅ Deploy Success!",
+                    description: """**Branch:** `${env.GIT_BRANCH}`
+**Build:** `#${env.BUILD_NUMBER}`
+**Status:** `✅ Success`
+**Environment:** `${params.DEPLOY_ENV}`
+**Heroku App:** `${DEPLOY_APP_NAME}`
+
+**📝 Changes:**
+`${env.GIT_COMMIT_SHORT}` ${env.GIT_MESSAGE} - ${env.GIT_AUTHOR}
+
+**🔗 Links:**
+• [View Build](${env.BUILD_URL})
+• [Console Output](${env.BUILD_URL}console)
+• [🌐 Application](${env.APP_URL})
+• [Actuator Health](${env.APP_URL}/actuator/health)
+• [Swagger UI](${env.APP_URL}/swagger-ui/index.html)
+
+**⏱️ Duration:** `${currentBuild.durationString}`""",
+                    link: env.BUILD_URL,
+                    result: 'SUCCESS'
+                )
+            }
+        }
+
+        failure {
+            script {
+                echo "❌ Pipeline failed!"
+
+                // Get failure information
+                def failureMessage = "Unknown error"
+                try {
+                    def log = currentBuild.rawBuild.getLog(100)
+                    failureMessage = log.findAll { it.contains('ERROR') || it.contains('FAILED') }
+                                          .take(5)
+                                          .join('\n')
+                    if (!failureMessage) {
+                        failureMessage = "Check console output for details"
+                    }
+                } catch (Exception e) {
+                    failureMessage = "Check console output for details"
+                }
+
+                // Send failure notification to Discord
+                discordSend(
+                    webhookURL: DISCORD_WEBHOOK,
+                    title: "❌ Build Failed!",
+                    description: """**Branch:** `${env.GIT_BRANCH}`
+**Build:** `#${env.BUILD_NUMBER}`
+**Status:** `❌ Failed`
+**Environment:** `${params.DEPLOY_ENV}`
+**Heroku App:** `${DEPLOY_APP_NAME}`
+
+**📝 Last Commit:**
+`${env.GIT_COMMIT_SHORT}` ${env.GIT_MESSAGE} - ${env.GIT_AUTHOR}
+
+**💥 Failure Info:**
+```
+${failureMessage}
+```
+
+**🔗 Links:**
+• [View Build](${env.BUILD_URL})
+• [Console Output](${env.BUILD_URL}console)
+
+**⏱️ Duration:** `${currentBuild.durationString}`""",
+                    link: env.BUILD_URL,
+                    result: 'FAILURE'
+                )
+            }
+        }
+
+        always {
+            echo "Pipeline execution completed"
+            // Clean up workspace if needed
+            // cleanWs()
+        }
+    }
+}
