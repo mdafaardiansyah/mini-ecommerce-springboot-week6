@@ -362,12 +362,16 @@ pipeline {
                     withEnv(["HEROKU_API_KEY=${HEROKU_API_KEY}", "DEPLOY_APP_NAME=${DEPLOY_APP_NAME}"]) {
                         sh '''
                             echo "Deploying to Heroku..."
+                            # Get current branch name dynamically
+                            CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
+                            echo "Current branch: ${CURRENT_BRANCH}"
+
                             # Create a temporary git remote for Heroku
                             git remote add heroku-deploy https://heroku:${HEROKU_API_KEY}@git.heroku.com/${DEPLOY_APP_NAME}.git || \
                             git remote set-url heroku-deploy https://heroku:${HEROKU_API_KEY}@git.heroku.com/${DEPLOY_APP_NAME}.git
 
-                            # Push to Heroku
-                            git push heroku-deploy HEAD:main --force
+                            # Push to Heroku (push current branch to main)
+                            git push heroku-deploy ${CURRENT_BRANCH}:main --force
 
                             # Remove the remote
                             git remote remove heroku-deploy
