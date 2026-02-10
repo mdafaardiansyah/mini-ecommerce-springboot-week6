@@ -37,12 +37,9 @@ pipeline {
 
     environment {
         // Heroku Credentials
-        HEROKU_API_KEY = credentials('heroku-api-key')
-        HEROKU_APP_NAME_DEV = credentials('heroku-app-name-dev')
-        HEROKU_APP_NAME_PROD = credentials('heroku-app-name-prod')
-
-        // Notification (optional)
-        DISCORD_WEBHOOK = credentials('discord-notification')
+        HEROKU_API_KEY = credentials('HEROKU_API_KEY')
+        HEROKU_APP_NAME_DEV = 'week6-practice1-dev'
+        HEROKU_APP_NAME_PROD = 'week6-practice1-prod'
 
         // Application Configuration
         APP_NAME = 'week6-practice1'
@@ -91,10 +88,13 @@ pipeline {
                     echo "Message: ${env.GIT_MESSAGE}"
 
                     // Send notification to Discord (optional)
-                    discordSend(
-                        webhookURL: DISCORD_WEBHOOK,
-                        title: "🚀 Build Started!",
-                        description: """**Branch:** `${env.GIT_BRANCH}`
+                    script {
+                        try {
+                            withCredentials([string(credentialsId: 'discord-notification', variable: 'DISCORD_WEBHOOK')]) {
+                                discordSend(
+                                    webhookURL: DISCORD_WEBHOOK,
+                                    title: "🚀 Build Started!",
+                                    description: """**Branch:** `${env.GIT_BRANCH}`
 **Build:** `#${env.BUILD_NUMBER}`
 **Status:** `🔄 In Progress`
 **Commit:** `${env.GIT_COMMIT_SHORT}`
@@ -104,9 +104,15 @@ pipeline {
 **🔗 Links:**
 • [View Build](${env.BUILD_URL})
 • [Console Output](${env.BUILD_URL}console)""",
-                        link: env.BUILD_URL,
-                        result: 'STARTED'
-                    )
+                                    link: env.BUILD_URL,
+                                    result: 'STARTED'
+                                )
+                            }
+                        } catch (Exception e) {
+                            echo "⚠️ Discord notification not configured. Skipping notification..."
+                            echo "To enable Discord notifications, add 'discord-notification' credential in Jenkins."
+                        }
+                    }
                 }
             }
         }
@@ -365,10 +371,12 @@ pipeline {
                 echo "✅ Pipeline completed successfully!"
 
                 // Send success notification to Discord
-                discordSend(
-                    webhookURL: DISCORD_WEBHOOK,
-                    title: "✅ Deploy Success!",
-                    description: """**Branch:** `${env.GIT_BRANCH}`
+                try {
+                    withCredentials([string(credentialsId: 'discord-notification', variable: 'DISCORD_WEBHOOK')]) {
+                        discordSend(
+                            webhookURL: DISCORD_WEBHOOK,
+                            title: "✅ Deploy Success!",
+                            description: """**Branch:** `${env.GIT_BRANCH}`
 **Build:** `#${env.BUILD_NUMBER}`
 **Status:** `✅ Success`
 **Environment:** `${params.DEPLOY_ENV}`
@@ -385,9 +393,13 @@ pipeline {
 • [Swagger UI](${env.APP_URL}/swagger-ui/index.html)
 
 **⏱️ Duration:** `${currentBuild.durationString}`""",
-                    link: env.BUILD_URL,
-                    result: 'SUCCESS'
-                )
+                            link: env.BUILD_URL,
+                            result: 'SUCCESS'
+                        )
+                    }
+                } catch (Exception e) {
+                    echo "⚠️ Discord notification not configured. Skipping notification..."
+                }
             }
         }
 
@@ -410,10 +422,12 @@ pipeline {
                 }
 
                 // Send failure notification to Discord
-                discordSend(
-                    webhookURL: DISCORD_WEBHOOK,
-                    title: "❌ Build Failed!",
-                    description: """**Branch:** `${env.GIT_BRANCH}`
+                try {
+                    withCredentials([string(credentialsId: 'discord-notification', variable: 'DISCORD_WEBHOOK')]) {
+                        discordSend(
+                            webhookURL: DISCORD_WEBHOOK,
+                            title: "❌ Build Failed!",
+                            description: """**Branch:** `${env.GIT_BRANCH}`
 **Build:** `#${env.BUILD_NUMBER}`
 **Status:** `❌ Failed`
 **Environment:** `${params.DEPLOY_ENV}`
@@ -432,9 +446,13 @@ ${failureMessage}
 • [Console Output](${env.BUILD_URL}console)
 
 **⏱️ Duration:** `${currentBuild.durationString}`""",
-                    link: env.BUILD_URL,
-                    result: 'FAILURE'
-                )
+                            link: env.BUILD_URL,
+                            result: 'FAILURE'
+                        )
+                    }
+                } catch (Exception e) {
+                    echo "⚠️ Discord notification not configured. Skipping notification..."
+                }
             }
         }
 
