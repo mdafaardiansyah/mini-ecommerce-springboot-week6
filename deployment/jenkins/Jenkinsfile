@@ -41,6 +41,12 @@ pipeline {
         HEROKU_APP_NAME_DEV = 'week6-practice1-dev'
         HEROKU_APP_NAME_PROD = 'week6-practice1-prod'
 
+        // Database Credentials (External MySQL Database)
+        DATABASE_URL = credentials('db-url')
+        DATABASE_USERNAME = credentials('db-username')
+        DATABASE_PASSWORD = credentials('db-password')
+        DATABASE_DRIVER = credentials('db-driver')
+
         // Application Configuration
         APP_NAME = 'week6-practice1'
         IMAGE_TAG = "${params.RELEASE_TAG ? params.RELEASE_TAG : env.BUILD_NUMBER}"
@@ -255,10 +261,19 @@ pipeline {
                         fi
                     """
 
-                    // Set Java version
+                    // Set Java version and environment variables
                     sh """
                         heroku config:set JAVA_OPTS="-Xmx512m -Xms256m" --app ${DEPLOY_APP_NAME}
                         heroku config:set SPRING_PROFILES_ACTIVE=${params.DEPLOY_ENV} --app ${DEPLOY_APP_NAME}
+                    """
+
+                    // Set Database Configuration (External MySQL)
+                    sh """
+                        echo "Configuring external database connection..."
+                        heroku config:set DB_URL="${DATABASE_URL}" --app ${DEPLOY_APP_NAME}
+                        heroku config:set DB_USERNAME="${DATABASE_USERNAME}" --app ${DEPLOY_APP_NAME}
+                        heroku config:set DB_PASSWORD="${DATABASE_PASSWORD}" --app ${DEPLOY_APP_NAME}
+                        heroku config:set DRIVER_MYSQL="${DATABASE_DRIVER}" --app ${DEPLOY_APP_NAME}
                     """
 
                     // Set buildpacks
@@ -341,15 +356,19 @@ pipeline {
         }
 
         // ============================================================
-        // STAGE 8: Database Migration (Optional)
+        // STAGE 8: Database Migration (Optional - DISABLED)
         // ============================================================
+        // NOTE: Database migration disabled - using external MySQL database
+        // The application will auto-create/update tables using JPA/Hibernate
+        // If you need manual migrations, enable Flyway and uncomment below
+        /*
         stage('Database Migration') {
             when {
                 expression { params.DEPLOY_ENV == 'production' }
             }
             steps {
                 script {
-                    echo "Running database migrations on Heroku Postgres..."
+                    echo "Running database migrations..."
 
                     // Run Flyway migrations if configured
                     // sh "mvn flyway:migrate -Dflyway.url=\$DATABASE_URL"
@@ -358,6 +377,7 @@ pipeline {
                 }
             }
         }
+        */
     }
 
     // ============================================================
