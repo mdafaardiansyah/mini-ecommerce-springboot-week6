@@ -14,7 +14,7 @@ import java.util.List;
 
 /**
  * OpenAPI/Swagger Configuration
- * Test Trigger
+ * Test Trigger 2
  *
  * <p>This class configures the OpenAPI documentation for the REST API.
  * It provides API metadata, server information, and endpoint grouping.</p>
