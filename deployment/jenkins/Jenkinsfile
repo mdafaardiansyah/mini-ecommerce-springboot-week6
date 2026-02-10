@@ -231,13 +231,6 @@ pipeline {
         // STAGE 6: Deploy to Heroku
         // ============================================================
         stage('Deploy to Heroku') {
-            when {
-                anyOf {
-                    branch 'main'
-                    branch 'master'
-                    branch 'develop'
-                }
-            }
             steps {
                 script {
                     echo "Deploying to Heroku App: ${DEPLOY_APP_NAME} (${params.DEPLOY_ENV})"
@@ -314,31 +307,35 @@ pipeline {
                     sleep time: 45, unit: 'SECONDS'
 
                     // Health check using Actuator endpoint
-                    sh """
-                        set +e
-                        MAX_RETRIES=10
-                        RETRY_COUNT=0
+                    // Pass appUrl as environment variable to shell script
+                    withEnv(["APP_URL=${appUrl}"]) {
+                        sh """
+                            set +e
+                            MAX_RETRIES=10
+                            RETRY_COUNT=0
 
-                        while [ \$RETRY_COUNT -lt \$MAX_RETRIES ]; do
-                            echo "Attempt \$((RETRY_COUNT + 1)) of \$MAX_RETRIES"
+                            while [ \${RETRY_COUNT} -lt \${MAX_RETRIES} ]; do
+                                echo "Attempt \$((RETRY_COUNT + 1)) of \${MAX_RETRIES}"
 
-                            # Check health endpoint
-                            HTTP_CODE=\$(curl -s -o /dev/null -w "%{http_code}" ${appUrl}/actuator/health || echo "000")
+                                # Check health endpoint
+                                HTTP_CODE=\$(curl -s -o /dev/null -w "%{http_code}" \${APP_URL}/actuator/health || echo "000")
 
-                            if [ "\$HTTP_CODE" = "200" ]; then
-                                echo "✅ Health check passed!"
-                                curl -s ${appUrl}/actuator/health | jq .
-                                exit 0
-                            fi
+                                if [ "\${HTTP_CODE}" = "200" ]; then
+                                    echo "✅ Health check passed!"
+                                    curl -s \${APP_URL}/actuator/health | jq . || echo "Health check response"
+                                    exit 0
+                                fi
 
-                            echo "⏳ Waiting for service... (HTTP: \$HTTP_CODE)"
-                            sleep 10
-                            RETRY_COUNT=\$((RETRY_COUNT + 1))
-                        done
+                                echo "⏳ Waiting for service... (HTTP: \${HTTP_CODE})"
+                                sleep 10
+                                RETRY_COUNT=\$((RETRY_COUNT + 1))
+                            done
 
-                        echo "❌ Health check failed after \$MAX_RETRIES attempts"
-                        exit 1
-                    """
+                            echo "❌ Health check failed after \${MAX_RETRIES} attempts"
+                            echo "URL attempted: \${APP_URL}"
+                            exit 1
+                        """
+                    }
                 }
             }
         }
