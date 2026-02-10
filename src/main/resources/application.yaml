@@ -4,7 +4,7 @@
 
 spring:
   application:
-    name: product-service-week6-miniproject
+    name: service-week6-miniproject
   profiles:
     active: dev
 
@@ -20,7 +20,7 @@ logging:
   # Log level defaults (di-override di tiap profile)
   level:
     root: INFO
-    edts.week5_practice1: DEBUG
+    edts.week6_practice1: DEBUG
 
   # File rolling configuration (di-override di tiap profile)
   logback:
@@ -28,6 +28,37 @@ logging:
       max-file-size: 10MB
       max-history: 30
       total-size-cap: 1GB
+
+# ========================================
+# ACTUATOR CONFIGURATION
+# ========================================
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,env
+      base-path: /actuator
+  endpoint:
+    health:
+      show-details: when-authorized
+    metrics:
+      enabled: true
+  info:
+    env:
+      enabled: true
+    build:
+      enabled: true
+    java:
+      enabled: true
+    os:
+      enabled: true
+  metrics:
+    tags:
+      application: ${spring.application.name}
+  simple:
+    metrics:
+      export:
+        enabled: true
 
 # ========================================
 # CUSTOM CONFIGURATION

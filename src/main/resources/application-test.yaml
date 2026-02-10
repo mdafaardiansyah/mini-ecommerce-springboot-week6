@@ -1,0 +1,55 @@
+# ========================================
+# TEST ENVIRONMENT
+# ========================================
+spring:
+  datasource:
+    url: jdbc:h2:mem:testdb
+    driver-class-name: org.h2.Driver
+    username: sa
+    password:
+
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
+        use_sql_comments: true
+        dialect: org.hibernate.dialect.H2Dialect
+
+  h2:
+    console:
+      enabled: true
+
+server:
+  port: 8081
+
+# ========================================
+# TEST LOGGING CONFIGURATION
+# ========================================
+logging:
+  file:
+    name: logs/test/product-service-test.log
+
+  level:
+    root: INFO
+    edts.week6_practice1: DEBUG
+
+    # Spring Framework
+    org.springframework: INFO
+    org.springframework.web: INFO
+    org.springframework.boot: INFO
+
+    # HikariCP
+    com.zaxxer.hikari: INFO
+
+    # Hibernate
+    org.hibernate: INFO
+    org.hibernate.SQL: DEBUG
+
+  logback:
+    rollingpolicy:
+      max-file-size: 5MB
+      max-history: 3
+      total-size-cap: 50MB
