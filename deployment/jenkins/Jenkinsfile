@@ -234,7 +234,7 @@ pipeline {
         }
 
         // ============================================================
-        // STAGE 5.5: Install Heroku CLI
+        // STAGE 5.5: Install Heroku CLI (Optional)
         // ============================================================
         stage('Install Heroku CLI') {
             steps {
@@ -244,14 +244,59 @@ pipeline {
                     sh '''
                         # Check if heroku CLI is installed
                         if ! command -v heroku &> /dev/null; then
-                            echo "Heroku CLI not found. Installing..."
+                            echo "⚠️ Heroku CLI not found. Attempting to install..."
 
-                            # Install Heroku CLI
-                            curl https://cli-assets.heroku.com/install.sh | sh
+                            # Try multiple installation methods
 
-                            # Verify installation
-                            heroku --version
-                            echo "✅ Heroku CLI installed successfully"
+                            # Method 1: Try npm (if available)
+                            if command -v npm &> /dev/null; then
+                                echo "Installing Heroku CLI via npm..."
+                                npm install -g heroku
+                                heroku --version
+                                echo "✅ Heroku CLI installed via npm"
+                            # Method 2: Try installing to home directory
+                            else
+                                echo "npm not found. Installing standalone binary..."
+
+                                # Detect architecture
+                                ARCH=$(uname -m)
+                                if [ "$ARCH" = "x86_64" ]; then
+                                    HEROKU_ARCH="x64"
+                                elif [ "$ARCH" = "aarch64" ] || [ "$ARCH" = "arm64" ]; then
+                                    HEROKU_ARCH="arm64"
+                                else
+                                    echo "⚠️ Unsupported architecture: $ARCH, skipping auto-install"
+                                    echo "⚠️ Please install Heroku CLI manually on Jenkins agent"
+                                    exit 0  # Don't fail, just skip
+                                fi
+
+                                # Create bin directory
+                                mkdir -p $HOME/bin
+
+                                # Download appropriate binary
+                                if [ "$(uname -s)" = "Linux" ]; then
+                                    curl -sSL https://github.com/heroku/cli/releases/latest/download/heroku-linux-$HEROKU_ARCH.tar.gz -o /tmp/heroku.tar.gz
+                                    tar -xzf /tmp/heroku.tar.gz -C $HOME/bin --strip-components=1
+                                    rm -f /tmp/heroku.tar.gz
+                                elif [ "$(uname -s)" = "Darwin" ]; then
+                                    curl -sSL https://github.com/heroku/cli/releases/latest/download/heroku-osx-$HEROKU_ARCH.tar.gz -o /tmp/heroku.tar.gz
+                                    tar -xzf /tmp/heroku.tar.gz -C $HOME/bin --strip-components=1
+                                    rm -f /tmp/heroku.tar.gz
+                                fi
+
+                                # Add to PATH
+                                export PATH="$HOME/bin:$PATH"
+
+                                # Verify
+                                if command -v heroku &> /dev/null; then
+                                    heroku --version
+                                    echo "✅ Heroku CLI installed successfully"
+                                else
+                                    echo "⚠️ Installation failed. Please install Heroku CLI manually on Jenkins agent"
+                                    echo "   Visit: https://devcenter.heroku.com/articles/heroku-cli"
+                                    exit 0  # Don't fail, just warn
+                                fi
+                            fi
                         else
                             echo "✅ Heroku CLI already installed"
                             heroku --version
