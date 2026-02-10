@@ -126,8 +126,9 @@ pipeline {
                     echo "Building Spring Boot Application with Maven..."
 
                     // Set Maven options for better performance
+                    // Note: MaxPermSize removed in Java 9+, using MetaspaceSize instead
                     withEnv([
-                        'MAVEN_OPTS=-Xmx3072m -XX:MaxPermSize=512m',
+                        'MAVEN_OPTS=-Xmx3072m -XX:MaxMetaspaceSize=512m',
                         "SPRING_PROFILES_ACTIVE=${params.DEPLOY_ENV}"
                     ]) {
                         // Clean, package, and skip tests for build stage
