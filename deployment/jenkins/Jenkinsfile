@@ -234,6 +234,34 @@ pipeline {
         }
 
         // ============================================================
+        // STAGE 5.5: Install Heroku CLI
+        // ============================================================
+        stage('Install Heroku CLI') {
+            steps {
+                script {
+                    echo "Checking Heroku CLI installation..."
+
+                    sh '''
+                        # Check if heroku CLI is installed
+                        if ! command -v heroku &> /dev/null; then
+                            echo "Heroku CLI not found. Installing..."
+
+                            # Install Heroku CLI
+                            curl https://cli-assets.heroku.com/install.sh | sh
+
+                            # Verify installation
+                            heroku --version
+                            echo "✅ Heroku CLI installed successfully"
+                        else
+                            echo "✅ Heroku CLI already installed"
+                            heroku --version
+                        fi
+                    '''
+                }
+            }
+        }
+
+        // ============================================================
         // STAGE 6: Deploy to Heroku
         // ============================================================
         stage('Deploy to Heroku') {
@@ -241,59 +269,78 @@ pipeline {
                 script {
                     echo "Deploying to Heroku App: ${DEPLOY_APP_NAME} (${params.DEPLOY_ENV})"
 
-                    // Login to Heroku
-                    sh """
-                        echo "Logging in to Heroku..."
-                        echo ${HEROKU_API_KEY} | heroku auth:token
+                    // Login to Heroku securely (no secret exposure in logs)
+                    withEnv(["HEROKU_API_KEY=${HEROKU_API_KEY}"]) {
+                        sh '''
+                            echo "Logging in to Heroku..."
+                            # Login using API key (won't show in logs)
+                            echo "${HEROKU_API_KEY}" | heroku auth:token
 
-                        # Verify authentication
-                        heroku auth:whoami
-                    """
+                            # Verify authentication
+                            heroku auth:whoami
+                            echo "✅ Successfully authenticated to Heroku"
+                        '''
+                    }
 
                     // Create Heroku app if it doesn't exist (first time only)
-                    sh """
+                    sh '''
                         # Check if app exists, create if not
-                        if ! heroku apps:info --app ${DEPLOY_APP_NAME} 2>/dev/null; then
+                        if ! heroku apps:info --app "${DEPLOY_APP_NAME}" 2>/dev/null; then
                             echo "Creating new Heroku app: ${DEPLOY_APP_NAME}"
-                            heroku create ${DEPLOY_APP_NAME}
+                            heroku create "${DEPLOY_APP_NAME}"
                         else
-                            echo "Heroku app exists: ${DEPLOY_APP_NAME}"
+                            echo "✅ Heroku app exists: ${DEPLOY_APP_NAME}"
                         fi
-                    """
+                    '''
 
                     // Set Java version and environment variables
-                    sh """
-                        heroku config:set JAVA_OPTS="-Xmx512m -Xms256m" --app ${DEPLOY_APP_NAME}
-                        heroku config:set SPRING_PROFILES_ACTIVE=${params.DEPLOY_ENV} --app ${DEPLOY_APP_NAME}
-                    """
+                    sh '''
+                        echo "Setting Java and environment variables..."
+                        heroku config:set JAVA_OPTS="-Xmx512m -Xms256m" --app "${DEPLOY_APP_NAME}"
+                        heroku config:set SPRING_PROFILES_ACTIVE="${DEPLOY_ENV}" --app "${DEPLOY_APP_NAME}"
+                        echo "✅ Environment variables set"
+                    '''
 
                     // Set Database Configuration (External MySQL)
-                    sh """
-                        echo "Configuring external database connection..."
-                        heroku config:set DB_URL="${DATABASE_URL}" --app ${DEPLOY_APP_NAME}
-                        heroku config:set DB_USERNAME="${DATABASE_USERNAME}" --app ${DEPLOY_APP_NAME}
-                        heroku config:set DB_PASSWORD="${DATABASE_PASSWORD}" --app ${DEPLOY_APP_NAME}
-                        heroku config:set DRIVER_MYSQL="${DATABASE_DRIVER}" --app ${DEPLOY_APP_NAME}
-                    """
+                    withEnv([
+                        "DATABASE_URL=${DATABASE_URL}",
+                        "DATABASE_USERNAME=${DATABASE_USERNAME}",
+                        "DATABASE_PASSWORD=${DATABASE_PASSWORD}",
+                        "DATABASE_DRIVER=${DATABASE_DRIVER}"
+                    ]) {
+                        sh '''
+                            echo "Configuring external database connection..."
+                            heroku config:set DB_URL="${DATABASE_URL}" --app "${DEPLOY_APP_NAME}"
+                            heroku config:set DB_USERNAME="${DATABASE_USERNAME}" --app "${DEPLOY_APP_NAME}"
+                            heroku config:set DB_PASSWORD="********" --app "${DEPLOY_APP_NAME}"
+                            heroku config:set DRIVER_MYSQL="${DATABASE_DRIVER}" --app "${DEPLOY_APP_NAME}"
+                            echo "✅ Database configuration set"
+                        '''
+                    }
 
                     // Set buildpacks
-                    sh """
-                        heroku buildpacks:set https://github.com/heroku/heroku-buildpack-java --app ${DEPLOY_APP_NAME}
-                    """
+                    sh '''
+                        echo "Setting Heroku buildpacks..."
+                        heroku buildpacks:set https://github.com/heroku/heroku-buildpack-java --app "${DEPLOY_APP_NAME}"
+                        echo "✅ Buildpack configured"
+                    '''
 
                     // Deploy using Git
-                    sh """
-                        echo "Deploying to Heroku..."
-                        # Create a temporary git remote for Heroku
-                        git remote add heroku-deploy https://heroku:${HEROKU_API_KEY}@git.heroku.com/${DEPLOY_APP_NAME}.git || \
-                        git remote set-url heroku-deploy https://heroku:${HEROKU_API_KEY}@git.heroku.com/${DEPLOY_APP_NAME}.git
+                    withEnv(["HEROKU_API_KEY=${HEROKU_API_KEY}", "DEPLOY_APP_NAME=${DEPLOY_APP_NAME}"]) {
+                        sh '''
+                            echo "Deploying to Heroku..."
+                            # Create a temporary git remote for Heroku
+                            git remote add heroku-deploy https://heroku:${HEROKU_API_KEY}@git.heroku.com/${DEPLOY_APP_NAME}.git || \
+                            git remote set-url heroku-deploy https://heroku:${HEROKU_API_KEY}@git.heroku.com/${DEPLOY_APP_NAME}.git
 
-                        # Push to Heroku
-                        git push heroku-deploy HEAD:main --force
+                            # Push to Heroku
+                            git push heroku-deploy HEAD:main --force
 
-                        # Remove the remote
-                        git remote remove heroku-deploy
-                    """
+                            # Remove the remote
+                            git remote remove heroku-deploy
+                            echo "✅ Deployment completed"
+                        '''
+                    }
 
                     echo "✅ Deployment successful!"
                 }
