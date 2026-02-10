@@ -33,6 +33,11 @@ pipeline {
             defaultValue: true,
             description: 'Run unit and integration tests'
         )
+        string(
+            name: 'CUSTOM_DOMAIN',
+            defaultValue: 'idp-week6.glanze.space',
+            description: 'Custom domain for smoke test (leave empty to use Heroku URL)'
+        )
     }
 
     environment {
@@ -51,6 +56,10 @@ pipeline {
         APP_NAME = 'week6-practice1'
         IMAGE_TAG = "${params.RELEASE_TAG ? params.RELEASE_TAG : env.BUILD_NUMBER}"
         DEPLOY_APP_NAME = "${params.DEPLOY_ENV == 'production' ? HEROKU_APP_NAME_PROD : HEROKU_APP_NAME_DEV}"
+
+        // Custom Domain Configuration (for smoke test)
+        // If CUSTOM_DOMAIN parameter is provided, use it; otherwise fallback to Heroku URL
+        CUSTOM_DOMAIN = "${params.CUSTOM_DOMAIN}"
     }
 
     stages {
@@ -407,16 +416,26 @@ pipeline {
                 script {
                     echo "Running smoke tests against deployed application..."
 
-                    // Get application URL from Heroku
-                    def appUrl = sh(
-                        script: """
-                            heroku apps:info --app ${DEPLOY_APP_NAME} --json | grep -o '"web_url":"[^"]*"' | cut -d'"' -f4
-                        """,
-                        returnStdout: true
-                    ).trim()
+                    // Determine application URL
+                    // Use custom domain if provided, otherwise fallback to Heroku URL
+                    def appUrl = ''
+
+                    if ("${CUSTOM_DOMAIN}"?.trim()) {
+                        // Custom domain is provided, use it
+                        appUrl = "https://${CUSTOM_DOMAIN}"
+                        echo "Using custom domain: ${appUrl}"
+                    } else {
+                        // No custom domain, get Heroku URL
+                        appUrl = sh(
+                            script: """
+                                heroku apps:info --app ${DEPLOY_APP_NAME} --json | grep -o '"web_url":"[^"]*"' | cut -d'"' -f4
+                            """,
+                            returnStdout: true
+                        ).trim()
+                        echo "Using Heroku URL: ${appUrl}"
+                    }
 
                     env.APP_URL = appUrl
-                    echo "Application URL: ${appUrl}"
 
                     // Wait for application to start
                     echo "Waiting for application to be ready (60 seconds)..."
@@ -579,7 +598,7 @@ ${failureMessage}
                     echo "⚠️ Discord notification not configured. Skipping notification..."
                 }
             }
-        }
+
 
         always {
             echo "Pipeline execution completed"
