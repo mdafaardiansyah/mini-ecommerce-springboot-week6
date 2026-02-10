@@ -247,11 +247,10 @@ pipeline {
                         # Detect architecture
                         ARCH=$(uname -m)
                         if [ "$ARCH" = "x86_64" ]; then
-                            HEROKU_ARCH="x64"
-                            DOWNLOAD_URL="https://github.com/heroku/cli/releases/download/v9.2.4/heroku-linux-x64.tar.gz"
+                            # Use Heroku's CDN instead of GitHub (more reliable)
+                            DOWNLOAD_URL="https://cli-assets.heroku.com/heroku-linux-x64.tar.gz"
                         elif [ "$ARCH" = "aarch64" ] || [ "$ARCH" = "arm64" ]; then
-                            HEROKU_ARCH="arm64"
-                            DOWNLOAD_URL="https://github.com/heroku/cli/releases/download/v9.2.4/heroku-linux-arm64.tar.gz"
+                            DOWNLOAD_URL="https://cli-assets.heroku.com/heroku-linux-arm64.tar.gz"
                         else
                             echo "❌ Unsupported architecture: $ARCH"
                             exit 1
@@ -260,8 +259,8 @@ pipeline {
                         echo "=========================================="
                         echo "Heroku CLI Installation"
                         echo "=========================================="
-                        echo "Architecture: $HEROKU_ARCH"
-                        echo "URL: $DOWNLOAD_URL"
+                        echo "Architecture: $ARCH"
+                        echo "Download URL: $DOWNLOAD_URL"
                         echo "=========================================="
 
                         # Create heroku directory in workspace
@@ -270,29 +269,13 @@ pipeline {
                         # Download to temporary file
                         TEMP_FILE="/tmp/heroku-cli.tar.gz"
 
-                        echo "Step 1: Downloading Heroku CLI..."
+                        echo "Step 1: Downloading from Heroku CDN..."
                         if curl -fSL "$DOWNLOAD_URL" -o "$TEMP_FILE"; then
                             echo "✅ Download completed"
                         else
-                            echo "❌ Download failed!"
-                            echo "Trying to fetch latest release URL from GitHub API..."
-
-                            # Fetch latest release from GitHub API
-                            LATEST_INFO=$(curl -s https://api.github.com/repos/heroku/cli/releases/latest)
-                            LATEST_VERSION=$(echo "$LATEST_INFO" | grep -o '"tag_name": *"[^"]*"' | cut -d'"' -f4)
-
-                            echo "Latest version: $LATEST_VERSION"
-
-                            # Find the correct download URL
-                            DOWNLOAD_URL=$(echo "$LATEST_INFO" | grep -o '"browser_download_url": *"[^"]*heroku-linux-'${HEROKU_ARCH}'.tar.gz"' | cut -d'"' -f4 | head -1)
-
-                            if [ -n "$DOWNLOAD_URL" ]; then
-                                echo "Found URL: $DOWNLOAD_URL"
-                                curl -fSL "$DOWNLOAD_URL" -o "$TEMP_FILE"
-                            else
-                                echo "❌ Could not find download URL for $HEROKU_ARCH"
-                                exit 1
-                            fi
+                            echo "❌ Download from CDN failed!"
+                            echo "Please check your internet connection or proxy settings"
+                            exit 1
                         fi
 
                         # Check file size
@@ -301,7 +284,7 @@ pipeline {
 
                         if [ "$FILE_SIZE" -lt 10000000 ]; then
                             echo "❌ File too small! Download may have failed."
-                            echo "First 200 bytes:"
+                            echo "First 200 bytes of downloaded file:"
                             head -c 200 "$TEMP_FILE"
                             rm -f "$TEMP_FILE"
                             exit 1
