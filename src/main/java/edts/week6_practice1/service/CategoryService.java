@@ -47,8 +47,10 @@ public class CategoryService {
      */
     @Transactional(readOnly = true)
     public org.springframework.data.domain.Page<CategoryResponseDTO> getAllCategoriesPage(Pageable pageable) {
-        log.debug("Fetching all categories with pagination");
-        Page<Category> categories = categoryRepository.findAll(pageable);
+        log.debug("Fetching all categories with pagination: page={}, size={}", pageable.getPageNumber(), pageable.getPageSize());
+        // Use paginated query to avoid loading all records into memory
+        org.springframework.data.domain.Page<Category> categories = categoryRepository.findAllActive(pageable);
+        log.debug("Found {} categories (total: {})", categories.getContent().size(), categories.getTotalElements());
         return categories.map(this::mapToResponseDTO);
     }
 
@@ -60,9 +62,12 @@ public class CategoryService {
      */
     @Transactional(readOnly = true)
     public List<CategoryResponseDTO> getAllCategories(Pageable pageable) {
-        log.debug("Fetching all categories with pagination");
-        Page<Category> categories = categoryRepository.findAll(pageable);
-        return categories.stream()
+        log.debug("Fetching all categories with pagination: page={}, size={}", pageable.getPageNumber(), pageable.getPageSize());
+        // Use findAllActive(pageable) to properly handle pagination
+        // Convert Page to List for consistent return type
+        org.springframework.data.domain.Page<Category> categoryPage = categoryRepository.findAllActive(pageable);
+        log.debug("Found {} categories (total: {})", categoryPage.getContent().size(), categoryPage.getTotalElements());
+        return categoryPage.stream()
                 .map(this::mapToResponseDTO)
                 .toList();
     }
@@ -102,9 +107,11 @@ public class CategoryService {
         Category category = new Category();
         category.setName(requestDTO.name());
         category.setDescription(requestDTO.description());
+        // Explicitly set isDeleted to false to ensure proper soft-delete behavior
+        category.setIsDeleted(false);
 
-        Category savedCategory = categoryRepository.save(category);
-        log.info("Category created successfully with id: {}", savedCategory.getId());
+        Category savedCategory = categoryRepository.saveAndFlush(category);
+        log.info("Category created successfully with id: {}, isDeleted: {}", savedCategory.getId(), savedCategory.getIsDeleted());
 
         return mapToResponseDTO(savedCategory);
     }
@@ -134,9 +141,13 @@ public class CategoryService {
 
         category.setName(requestDTO.name());
         category.setDescription(requestDTO.description());
+        // Explicitly ensure isDeleted remains false during update
+        category.setIsDeleted(false);
+        log.debug("Updating category fields - name: {}, description: {}, isDeleted: {}",
+                requestDTO.name(), requestDTO.description(), category.getIsDeleted());
 
-        Category updatedCategory = categoryRepository.save(category);
-        log.info("Category updated successfully with id: {}", updatedCategory.getId());
+        Category updatedCategory = categoryRepository.saveAndFlush(category);
+        log.info("Category updated successfully with id: {}, isDeleted: {}", updatedCategory.getId(), updatedCategory.getIsDeleted());
 
         return mapToResponseDTO(updatedCategory);
     }

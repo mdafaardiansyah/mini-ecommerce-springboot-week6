@@ -37,8 +37,9 @@ public class ProductService {
 
     @Transactional(readOnly = true)
     public Page<ProductResponseDTO> getAllProductsPage(Pageable pageable) {
-        log.debug("Fetching all products with pagination");
+        log.debug("Fetching all products with pagination: page={}, size={}", pageable.getPageNumber(), pageable.getPageSize());
         Page<Product> products = productRepository.findAllActive(pageable);
+        log.debug("Found {} products (total: {})", products.getContent().size(), products.getTotalElements());
         return products.map(this::mapToResponseDTO);
     }
 
@@ -150,9 +151,11 @@ public class ProductService {
         product.setStock(requestDTO.stock());
         product.setSku(requestDTO.sku());
         product.setCategory(category);
+        // Explicitly set isDeleted to false to ensure proper soft-delete behavior
+        product.setIsDeleted(false);
 
-        Product savedProduct = productRepository.save(product);
-        log.info("Product created successfully with id: {}", savedProduct.getId());
+        Product savedProduct = productRepository.saveAndFlush(product);
+        log.info("Product created successfully with id: {}, isDeleted: {}", savedProduct.getId(), savedProduct.getIsDeleted());
 
         return mapToResponseDTO(savedProduct);
     }
@@ -188,9 +191,13 @@ public class ProductService {
         product.setStock(requestDTO.stock());
         product.setSku(requestDTO.sku());
         product.setCategory(category);
+        // Explicitly ensure isDeleted remains false during update
+        product.setIsDeleted(false);
+        log.debug("Updating product fields - name: {}, price: {}, stock: {}, isDeleted: {}",
+                requestDTO.name(), requestDTO.price(), requestDTO.stock(), product.getIsDeleted());
 
-        Product updatedProduct = productRepository.save(product);
-        log.info("Product updated successfully with id: {}", updatedProduct.getId());
+        Product updatedProduct = productRepository.saveAndFlush(product);
+        log.info("Product updated successfully with id: {}, isDeleted: {}", updatedProduct.getId(), updatedProduct.getIsDeleted());
 
         return mapToResponseDTO(updatedProduct);
     }
@@ -206,7 +213,7 @@ public class ProductService {
 
         if (product.getStock() > 0) {
             log.error("Cannot delete product with id: {}. Product has stock > 0", id);
-            throw new BusinessException("Produk dengan stok lebih dari 0 tidak boleh dihapus");
+            throw new BusinessException("Cannot delete product with stock greater than 0");
         }
 
         product.setIsDeleted(true);
