@@ -25,7 +25,6 @@ public interface ProductRepository extends JpaRepository<Product, Long> {
         AND (:name IS NULL OR name LIKE %:name%)
         AND (:minPrice IS NULL OR price >= :minPrice)
         AND (:maxPrice IS NULL OR price <= :maxPrice)
-        ORDER BY created_at DESC
         """, nativeQuery = true)
     Page<Product> searchProducts(
             @Param("name") String name,
@@ -34,7 +33,7 @@ public interface ProductRepository extends JpaRepository<Product, Long> {
             Pageable pageable
     );
 
-    @Query(value = "SELECT * FROM products WHERE is_deleted = false ORDER BY created_at DESC", nativeQuery = true)
+    @Query(value = "SELECT * FROM products WHERE is_deleted = false", nativeQuery = true)
     Page<Product> findAllActive(Pageable pageable);
 
     @Query(value = "SELECT COUNT(*) FROM products WHERE id = :id AND is_deleted = false", nativeQuery = true)

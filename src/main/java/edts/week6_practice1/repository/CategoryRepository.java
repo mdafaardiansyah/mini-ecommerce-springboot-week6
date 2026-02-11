@@ -26,6 +26,7 @@ public interface CategoryRepository extends JpaRepository<Category, Long> {
     /**
      * Find all categories that are not soft deleted (without pagination).
      * Overrides default findAll() to exclude soft-deleted records.
+     * Note: For consistent sorting, use the paginated version.
      *
      * @return List of active categories
      */
@@ -35,10 +36,11 @@ public interface CategoryRepository extends JpaRepository<Category, Long> {
     /**
      * Find all categories that are not soft deleted (with pagination).
      * This is the preferred method for paginated queries to avoid loading all records into memory.
+     * Sorting is handled by Pageable parameter (supports sortBy: id, name, createdAt, updatedAt).
      *
-     * @param pageable the pagination parameters
+     * @param pageable the pagination and sort parameters
      * @return Page of active categories
      */
-    @Query(value = "SELECT * FROM categories WHERE is_deleted = false ORDER BY name ASC", nativeQuery = true)
+    @Query(value = "SELECT * FROM categories WHERE is_deleted = false", nativeQuery = true)
     org.springframework.data.domain.Page<Category> findAllActive(Pageable pageable);
 }
