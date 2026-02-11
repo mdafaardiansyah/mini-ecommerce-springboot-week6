@@ -8,6 +8,20 @@ spring:
   # profiles:
   #   active: dev  ← DON'T SET DEFAULT PROFILE! Let Heroku env var control it
 
+  # ========================================
+  # JACKSON JSON CONFIGURATION (ISO 8601)
+  # ========================================
+  jackson:
+    # Set default timezone to UTC for all date/time serialization
+    time-zone: UTC
+    # Use ISO 8601 format with 'Z' suffix for UTC dates
+    date-format: yyyy-MM-dd'T'HH:mm:ss'Z'
+    # Serialize dates as timestamp (false) or ISO 8601 string (true)
+    serialization:
+      write-dates-as-timestamps: false
+    # Handle null values gracefully
+    default-property-inclusion: non_null
+
 # ========================================
 # LOGGING CONFIGURATION (Base)
 # ========================================
@@ -69,3 +83,20 @@ management:
 # ========================================
 server:
   port: 8080
+  # Enable response compression (GZIP)
+  compression:
+    enabled: true
+    mime-types: application/json,application/xml,text/html,text/xml,text/plain,application/javascript,text/css
+    min-response-size: 1024  # Only compress responses larger than 1KB
+
+# ========================================
+# SPRING MVC CONFIGURATION
+# ========================================
+spring:
+  mvc:
+    # Enable content negotiation for API versioning
+    contentnegotiation:
+      favor-parameter: true
+      parameter-name: format
+    # Throw exception if no handler found (instead of 404)
+    throw-exception-if-no-handler-found: true
