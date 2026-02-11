@@ -16,9 +16,6 @@ spring:
     time-zone: UTC
     # Use ISO 8601 format with 'Z' suffix for UTC dates
     date-format: yyyy-MM-dd'T'HH:mm:ss'Z'
-    # Serialize dates as timestamp (false) or ISO 8601 string (true)
-    serialization:
-      write-dates-as-timestamps: false
     # Handle null values gracefully
     default-property-inclusion: non_null
 
