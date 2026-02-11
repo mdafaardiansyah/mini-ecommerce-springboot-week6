@@ -22,6 +22,17 @@ spring:
     # Handle null values gracefully
     default-property-inclusion: non_null
 
+  # ========================================
+  # SPRING MVC CONFIGURATION
+  # ========================================
+  mvc:
+    # Enable content negotiation for API versioning
+    contentnegotiation:
+      favor-parameter: true
+      parameter-name: format
+    # Throw exception if no handler found (instead of 404)
+    throw-exception-if-no-handler-found: true
+
 # ========================================
 # LOGGING CONFIGURATION (Base)
 # ========================================
@@ -88,15 +99,3 @@ server:
     enabled: true
     mime-types: application/json,application/xml,text/html,text/xml,text/plain,application/javascript,text/css
     min-response-size: 1024  # Only compress responses larger than 1KB
-
-# ========================================
-# SPRING MVC CONFIGURATION
-# ========================================
-spring:
-  mvc:
-    # Enable content negotiation for API versioning
-    contentnegotiation:
-      favor-parameter: true
-      parameter-name: format
-    # Throw exception if no handler found (instead of 404)
-    throw-exception-if-no-handler-found: true
