@@ -41,6 +41,64 @@ import java.util.List;
 public class CorsConfig {
 
     /**
+     * Default CORS Configuration (Fallback when no profile is active).
+     *
+     * <p>This configuration is used when no specific profile (dev/prod) is active.
+     * It provides permissive CORS for local development, similar to the dev profile.</p>
+     *
+     * <p>This bean does NOT have a @Profile annotation, so it's always available
+     * as a fallback when profile-specific beans are not created.</p>
+     *
+     * @return CorsConfigurationSource for default/development usage
+     */
+    @Bean
+    public CorsConfigurationSource corsConfigurationSourceDefault() {
+        CorsConfiguration configuration = new CorsConfiguration();
+
+        // Allowed origins for local development (supports all localhost ports)
+        configuration.setAllowedOriginPatterns(List.of(
+                "http://localhost:*",      // Supports any port on localhost
+                "http://127.0.0.1:*",       // Alternative localhost
+                "http://0.0.0.0:*",        // Docker/container access
+                "http://localhost:3000",   // React (Create React App)
+                "http://localhost:5173",   // Vite (Vue/React)
+                "http://localhost:4200",   // Angular CLI
+                "http://localhost:30719",   // Specific dev server port
+                "http://localhost:8080"     // Spring Boot default
+        ));
+
+        // Allowed HTTP methods
+        configuration.setAllowedMethods(Arrays.asList(
+                "GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS", "HEAD"
+        ));
+
+        // Allowed headers (all headers for flexibility)
+        configuration.setAllowedHeaders(List.of("*"));
+
+        // Exposed headers
+        configuration.setExposedHeaders(Arrays.asList(
+                "ETag",
+                "X-Total-Count",
+                "X-Page-Count",
+                "X-Rate-Limit-Remaining",
+                "X-Rate-Limit-Reset"
+        ));
+
+        // Allow credentials
+        configuration.setAllowCredentials(true);
+
+        // Max age for preflight requests (1 hour)
+        configuration.setMaxAge(3600L);
+
+        // Apply configuration to all API endpoints
+        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
+        source.registerCorsConfiguration("/**", configuration);
+
+        return source;
+    }
+
+
+    /**
      * Development CORS Configuration.
      *
      * <p>Permissive settings for local development:

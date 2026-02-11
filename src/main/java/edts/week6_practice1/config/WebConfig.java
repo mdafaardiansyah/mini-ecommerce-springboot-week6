@@ -2,7 +2,6 @@ package edts.week6_practice1.config;
 
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.CacheControl;
-import org.springframework.web.servlet.config.annotation.CorsRegistry;
 import org.springframework.web.servlet.config.annotation.ResourceHandlerRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
@@ -13,40 +12,20 @@ import java.util.concurrent.TimeUnit;
  *
  * <p>This configuration handles:
  * <ul>
- *   <li>CORS (Cross-Origin Resource Sharing) mappings</li>
  *   <li>Static resource caching</li>
  *   <li>Resource chain optimization</li>
  *   <li>Path matching strategies</li>
  * </ul>
  * </p>
  *
+ * <p><b>Note:</b> CORS (Cross-Origin Resource Sharing) is configured separately
+ * in {@link CorsConfig} with profile-specific settings (dev/prod).</p>
+ *
  * @author EDTS Team
  * @version 1.0.0
  */
 @Configuration
 public class WebConfig implements WebMvcConfigurer {
-
-    /**
-     * Configure CORS mappings for all endpoints.
-     *
-     * <p>This method enables CORS support for the entire application.
-     * The actual CORS policies (allowed origins, methods, headers) are
-     * configured in {@link CorsConfig} based on the active profile.</p>
-     *
-     * <p>CORS is applied to all paths (/**) with credentials support enabled.</p>
-     *
-     * @param registry CorsRegistry
-     */
-    @Override
-    public void addCorsMappings(CorsRegistry registry) {
-        registry.addMapping("/**")
-                // Allow credentials (cookies, authorization headers)
-                .allowCredentials(true)
-                // Apply CORS to all endpoints
-                .allowedOriginPatterns("*")
-                // Max age for preflight requests (1 hour)
-                .maxAge(3600L);
-    }
 
     /**
      * Configure resource handlers for static assets.
