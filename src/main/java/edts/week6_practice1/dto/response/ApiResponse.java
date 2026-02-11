@@ -51,13 +51,12 @@ public class ApiResponse<T> {
     /**
      * Private constructor to enforce use of builder pattern.
      *
-     * @param <T> The type of data
      * @param code HTTP status code
      * @param status Status description
      * @param message Human-readable message
      * @param data Response payload
      */
-    private <T> ApiResponse(int code, String status, String message, T data) {
+    private ApiResponse(int code, String status, String message, T data) {
         this.code = code;
         this.status = status;
         this.message = message;
