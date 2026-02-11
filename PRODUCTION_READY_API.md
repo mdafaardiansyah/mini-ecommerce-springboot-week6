@@ -60,7 +60,108 @@ X-XSS-Protection: 1; mode=block
 
 ---
 
-## 3. Caching Headers & Performance 🚀
+## 3. CORS Configuration (Cross-Origin Resource Sharing) 🌐
+
+### Problem
+- Frontend applications running on different domains/ports couldn't access the API
+- Browser security restrictions blocking cross-origin requests
+- Need secure way to allow authorized frontend origins
+
+### Solution
+Created `CorsConfig.java` with environment-specific CORS policies:
+
+#### Development Profile (dev)
+**Origins Allowed:**
+- `http://localhost:*` (all ports)
+- `http://127.0.0.1:*`
+- `http://0.0.0.0:*`
+- Specific ports: 3000 (React), 5173 (Vite), 4200 (Angular), 8080
+
+**Settings:**
+- All HTTP methods allowed (GET, POST, PUT, PATCH, DELETE, OPTIONS, HEAD)
+- All headers allowed
+- Credentials enabled
+- Max age: 1 hour (preflight caching)
+
+#### Production Profile (prod)
+**Origins Allowed (Whitelist):**
+- `https://idp-week6.glanze.space`
+- `https://www.idp-week6.glanze.space`
+
+**Settings:**
+- Restricted HTTP methods (GET, POST, PUT, PATCH, DELETE, OPTIONS)
+- Specific headers only (Authorization, Content-Type, Accept, etc)
+- Credentials enabled
+- Max age: 1 hour
+
+**Exposed Headers:**
+```java
+ETag, X-Total-Count, X-Page-Count,
+X-Rate-Limit-Remaining, X-Rate-Limit-Reset, X-Request-ID
+```
+
+### Testing
+
+#### 1. Development
+```bash
+# From localhost frontend
+curl -H "Origin: http://localhost:3000" \
+     -H "Access-Control-Request-Method: GET" \
+     -X OPTIONS http://localhost:8080/api/v1/products
+
+# Expected response headers:
+Access-Control-Allow-Origin: http://localhost:3000
+Access-Control-Allow-Credentials: true
+Access-Control-Max-Age: 3600
+```
+
+#### 2. Production
+```bash
+# From production domain
+curl -H "Origin: https://idp-week6.glanze.space" \
+     -H "Access-Control-Request-Method: GET" \
+     -X OPTIONS https://idp-week6.glanze.space/api/v1/products
+
+# Expected response headers:
+Access-Control-Allow-Origin: https://idp-week6.glanze.space
+Access-Control-Allow-Credentials: true
+Vary: Origin
+```
+
+#### 3. Invalid Origin (Should Fail)
+```bash
+curl -H "Origin: https://evil-site.com" \
+     -H "Access-Control-Request-Method: GET" \
+     -X OPTIONS https://idp-week6.glanze.space/api/v1/products
+
+# Expected: No Access-Control-Allow-Origin header
+# Browser will block the request
+```
+
+### Security Best Practices
+
+✅ **No Wildcards in Production**
+- Never use `Access-Control-Allow-Origin: *` in production
+- Always whitelist specific origins
+- Prevents unauthorized domains from accessing your API
+
+✅ **Restricted HTTP Methods**
+- Only allow necessary methods (GET, POST, PUT, PATCH, DELETE)
+- Don't allow methods you don't use (e.g., TRACE, CONNECT)
+
+✅ **Specific Headers Only**
+- Don't allow all headers in production
+- Whitelist only headers you need
+- Prevents header injection attacks
+
+✅ **Credentials Control**
+- Enable `allowCredentials` only when needed
+- Cannot use with wildcard origins
+- Must specify exact origins
+
+---
+
+## 4. Caching Headers & Performance 🚀
 
 ### Implementation
 Created `CacheHeadersConfig.java` to add cache headers based on endpoint type:
@@ -114,7 +215,7 @@ Database load reduced by 90%
 
 ---
 
-## 4. Standard Response Wrapper 📦
+## 5. Standard Response Wrapper 📦
 
 ### Problem
 - Inconsistent response structures across endpoints
@@ -161,7 +262,7 @@ ApiResponse<Product> response = ApiResponse.success(
 
 ---
 
-## 5. Response Compression 🗜️
+## 6. Response Compression 🗜️
 
 ### Implementation
 Enabled GZIP compression in `application.yaml`:
@@ -196,7 +297,7 @@ server:
 
 ---
 
-## 6. Static Resource Optimization ⚡
+## 7. Static Resource Optimization ⚡
 
 ### Implementation
 Created `WebConfig.java` to optimize static resource delivery:
